@@ -381,16 +381,13 @@ const GuideModal = ({ onClose }: { onClose: () => void }) => {
 };
 
 export default function App() {
-  const [files, setFiles] = useState<FileItem[]>([
-    { id: '1', name: 'App.tsx', content: '// Welcome to Aura IDE\nexport default function App() {\n  return <div>Hello World</div>;\n}', language: 'typescript' },
-    { id: '2', name: 'index.css', content: 'body { background: #1e1e1e; }', language: 'css' },
-  ]);
+  const [files, setFiles] = useState<FileItem[]>([]);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [showFileSearch, setShowFileSearch] = useState(false);
   const [showGuideModal, setShowGuideModal] = useState(false);
   const [commandInput, setCommandInput] = useState('');
   const [fileSearchInput, setFileSearchInput] = useState('');
-  const [activeFileId, setActiveFileId] = useState<string>('1');
+  const [activeFileId, setActiveFileId] = useState<string>('');
   const [layoutMode, setLayoutMode] = useState<'classic' | 'modern'>('classic');
   const activeFile = files.find(f => f.id === activeFileId) || (files.length > 0 ? files[0] : null);
 
@@ -2226,23 +2223,26 @@ Integrations:
                 <p className="text-[#858585] max-w-md">The next generation AI-powered development environment. Start by creating a new file or opening a folder.</p>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-2xl px-4">
-                <button onClick={createNewFile} className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-95">
+                <button onClick={openFolder} className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-95">
                   <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                    <Plus size={24} className="text-blue-500 group-hover:scale-110 transition-transform" />
-                  </div>
-                  <span className="text-sm font-medium">New File</span>
-                </button>
-                <button onClick={openFolder} className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/10 active:scale-95">
-                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                    <FolderOpen size={24} className="text-purple-500 group-hover:scale-110 transition-transform" />
+                    <FolderOpen size={24} className="text-blue-500 group-hover:scale-110 transition-transform" />
                   </div>
                   <span className="text-sm font-medium">Open Folder</span>
                 </button>
-                <button onClick={() => setSidebarTab('github')} className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/10 active:scale-95">
-                  <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
-                    <Github size={24} className="text-indigo-500 group-hover:scale-110 transition-transform" />
+                <button 
+                  onClick={() => setSidebarTab('github')} 
+                  className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/10 active:scale-95"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                    <Github size={24} className="text-purple-500 group-hover:scale-110 transition-transform" />
                   </div>
                   <span className="text-sm font-medium">Clone Repo</span>
+                </button>
+                <button onClick={createNewFile} className="flex flex-col items-center gap-3 p-6 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-2xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/10 active:scale-95">
+                  <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                    <Plus size={24} className="text-indigo-500 group-hover:scale-110 transition-transform" />
+                  </div>
+                  <span className="text-sm font-medium">New File</span>
                 </button>
                 <button onClick={() => {
                   const url = prompt('Enter GitHub Repository URL (e.g. user/repo):');
