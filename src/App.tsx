@@ -1675,7 +1675,7 @@ Integrations:
                           Disconnect
                         </button>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-250px)] pr-1 custom-scrollbar">
                         {githubRepos.map(repo => (
                           <div 
                             key={repo.id}

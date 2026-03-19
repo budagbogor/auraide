@@ -17,7 +17,7 @@ export const fetchUserRepos = async (token: string) => {
   const client = new Octokit({ auth: token });
   const { data } = await client.rest.repos.listForAuthenticatedUser({
     sort: 'updated',
-    per_page: 10,
+    per_page: 100,
   });
   return data;
 };
