@@ -37,15 +37,30 @@ export async function fetchFreeModels(): Promise<OpenRouterModel[]> {
   }
 }
 
-export async function generateOpenRouterContent(model: string, prompt: string, apiKey: string) {
+export async function generateOpenRouterContent(model: string, prompt: string, apiKey: string, attachments: any[] = []) {
   let targetModel = model;
   
   if (model === "auto-free") {
     const models = await fetchFreeModels();
-    // Pick the best one (first in sorted list)
     targetModel = models[0].id;
-    console.log(`Smart Auto-Select picked: ${targetModel}`);
   }
+
+  const contentParts: any[] = [{ type: "text", text: prompt }];
+  
+  // Add image attachments for multimodal support
+  attachments.forEach(file => {
+    if (file.type.startsWith('image/')) {
+      contentParts.push({
+        type: "image_url",
+        image_url: {
+          url: file.data // base64 data URL
+        }
+      });
+    } else {
+      // For non-image files, we append content to the prompt in App.tsx
+      // but we could also handle it here if we wanted.
+    }
+  });
 
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -58,7 +73,7 @@ export async function generateOpenRouterContent(model: string, prompt: string, a
     body: JSON.stringify({
       model: targetModel,
       messages: [
-        { role: "user", content: prompt }
+        { role: "user", content: contentParts }
       ]
     })
   });

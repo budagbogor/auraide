@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 @import "tailwindcss";
 
 @theme {
@@ -8,6 +9,25 @@
 @layer base {
   body {
     @apply bg-[#1e1e1e] text-[#cccccc] font-sans antialiased overflow-hidden;
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10;
+  }
+  .glass-dark {
+    @apply bg-black/20 backdrop-blur-xl border border-white/5;
+  }
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-lg border border-white/10 shadow-xl;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }
 
@@ -24,6 +44,7 @@
 ::-webkit-scrollbar-thumb {
   background: #333;
   border: 2px solid #1e1e1e;
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
