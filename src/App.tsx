@@ -61,6 +61,7 @@ import { FREE_MODELS, generateOpenRouterContent, fetchFreeModels, type OpenRoute
 import { BYTEZ_MODELS, generateBytezContent } from './services/bytezService';
 import { saveProjectToCloud, loadProjectFromCloud, listCloudProjects } from './services/supabaseService';
 import { fetchUserRepos, cloneRepository, pushProjectToGitHub } from './services/githubService';
+import { generateGeminiStream } from './services/geminiService';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 interface McpTemplateArg {
@@ -484,10 +485,13 @@ const GuideModal = ({ onClose }: { onClose: () => void }) => {
 
 export default function App() {
   const [TauriCommand, setTauriCommand] = useState<any>(null);
+  const [tauriDialog, setTauriDialog] = useState<any>(null);
+  const [nativeProjectPath, setNativeProjectPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
       import('@tauri-apps/plugin-shell').then(m => { setTauriCommand(() => m.Command); });
+      import('@tauri-apps/plugin-dialog').then(m => { setTauriDialog(m); });
     }
   }, []);
 
@@ -938,35 +942,34 @@ Integrations:
 
       if (aiProvider === 'gemini') {
         const apiKey = geminiApiKey || process.env.GEMINI_API_KEY || '';
-        const ai = getGeminiAI(apiKey);
-        const parts: any[] = [{ text: prompt }];
         
-        // Add image parts for Gemini
-        attachedFiles.forEach(file => {
-          if (file.type.startsWith('image/')) {
-            const base64Data = file.data.split(',')[1];
-            parts.push({
-              inlineData: {
-                data: base64Data,
-                mimeType: file.type
-              }
+        // Initial empty assistant message
+        const assistantMsg: ChatMessage = { role: 'assistant', content: '' };
+        setChatMessages(prev => [...prev, assistantMsg]);
+        
+        let fullResponse = '';
+        try {
+          const stream = generateGeminiStream(apiKey, selectedModel, prompt, attachedFiles);
+          for await (const chunk of stream) {
+            fullResponse += chunk;
+            setChatMessages(prev => {
+              const newMsgs = [...prev];
+              newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], content: fullResponse };
+              return newMsgs;
             });
           }
-        });
-
-        const response = await ai.models.generateContent({
-          model: selectedModel,
-          contents: [
-            {
-              role: "user",
-              parts: parts,
-            },
-          ],
-        });
-        content = response.text || 'Sorry, I couldn\'t generate a response.';
+        } catch (streamErr: any) {
+          console.error('Stream Error:', streamErr);
+          setChatMessages(prev => {
+            const newMsgs = [...prev];
+            newMsgs[newMsgs.length - 1] = { ...newMsgs[newMsgs.length - 1], content: `Error: ${streamErr.message}` };
+            return newMsgs;
+          });
+        }
       } else if (aiProvider === 'bytez') {
         const googleKey = geminiApiKey || process.env.GEMINI_API_KEY || '';
         content = await generateBytezContent(bytezModel, prompt, bytezApiKey, googleKey, attachedFiles);
+        setChatMessages(prev => [...prev, { role: 'assistant', content: content }]);
       } else if (aiProvider === 'sumopod') {
         if (!sumopodApiKey) throw new Error('SumoPod API Key is required. Please set it in Settings.');
         content = await generateSumopodContent(sumopodApiKey, sumopodModel, [
@@ -974,14 +977,14 @@ Integrations:
           ...chatMessages.map(m => ({ role: m.role as any, content: m.content })),
           { role: 'user', content: prompt }
         ]);
+        setChatMessages(prev => [...prev, { role: 'assistant', content: content }]);
       } else {
         const apiKey = openRouterApiKey || process.env.OPENROUTER_API_KEY || '';
         if (!apiKey) throw new Error('OpenRouter API Key is missing. Please set it in Settings.');
         content = await generateOpenRouterContent(openRouterModel, prompt, apiKey, attachedFiles);
+        setChatMessages(prev => [...prev, { role: 'assistant', content: content }]);
       }
 
-      const assistantMsg: ChatMessage = { role: 'assistant', content: content };
-      setChatMessages(prev => [...prev, assistantMsg]);
       setAttachedFiles([]); // Clear attachments after sending
     } catch (error: any) {
       console.error('AI Error:', error);
@@ -1058,11 +1061,40 @@ Integrations:
       if (newFiles.length > 0) {
         setFiles(newFiles);
         setActiveFileId(newFiles[0].id);
-        setTerminalOutput(prev => [...prev, `Opened folder: ${dirHandle.name}`, `Loaded ${newFiles.length} files.`]);
+        setNativeProjectPath(null); // Web handles don't have native paths
+        setTerminalOutput(prev => [...prev, `Opened folder: ${dirHandle.name}`, `Loaded ${newFiles.length} files.`, `[WARNING] Folder dibuka via Browser API. Terminal tidak mendukung perintah sistem (npm/git) dalam mode ini. Gunakan mode Native di versi Desktop untuk dukungan penuh.`]);
       }
     } catch (err) {
       console.error('Error opening folder:', err);
       setTerminalOutput(prev => [...prev, 'Error: Could not open local folder. (Browser may block this in iframes)']);
+    }
+  };
+
+  const openFolderNative = async () => {
+    if (!tauriDialog) {
+      alert("Fitur Native Dialog hanya tersedia di aplikasi Desktop (.exe).");
+      return;
+    }
+    
+    try {
+      const selected = await tauriDialog.open({
+        directory: true,
+        multiple: false,
+        title: 'Pilih Folder Project (Native)'
+      });
+
+      if (selected && typeof selected === 'string') {
+        setNativeProjectPath(selected);
+        setTerminalOutput(prev => [...prev, `[SYSTEM] Folder Native dipilih: ${selected}`, '[SYSTEM] Mendeteksi file...']);
+        
+        // Use Tauri FS or just inform the user we are in native mode
+        // For efficiency, we will still use the web files state but the terminal will point to this real path
+        setTerminalOutput(prev => [...prev, '[SYSTEM] Terminal sekarang mengacu pada direktori ini. Perintah npm/git kini dapat dijalankan.']);
+        alert("Folder berhasil terhubung secara Native! Terminal sekarang siap menjalankan perintah npm/git.");
+      }
+    } catch (err: any) {
+      console.error('Native Dialog Error:', err);
+      setTerminalOutput(prev => [...prev, `[ERROR] Gagal membuka folder native: ${err.message}`]);
     }
   };
 
@@ -1186,7 +1218,9 @@ Integrations:
           const args = parts.slice(1);
 
           // We use 'powershell' on Windows for better compatibility and full command access natively
-          const fullCmd = TauriCommand.create('powershell', ['-Command', val]);
+          const fullCmd = TauriCommand.create('powershell', ['-Command', val], {
+            cwd: nativeProjectPath || undefined
+          });
           
           fullCmd.onStdout.addListener((data: string) => {
             setTerminalOutput(prev => [...prev, data]);
@@ -1688,9 +1722,15 @@ Integrations:
                   <button onClick={createNewFile} title="New File" className="hover:text-white transition-colors">
                     <Plus size={14} />
                   </button>
-                  <button onClick={openFolder} title="Open Folder Lokal" className="hover:text-white transition-colors">
+                  <button onClick={openFolder} title="Open Folder Lokal (Web)" className="hover:text-white transition-colors">
                     <FolderOpen size={14} />
                   </button>
+                  {TauriCommand && (
+                    <button onClick={openFolderNative} title="Open Folder Proyek (Native - Support Terminal/NPM)" className="hover:text-yellow-400 transition-colors relative group">
+                      <FolderTree size={14} />
+                      {nativeProjectPath && <div className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />}
+                    </button>
+                  )}
                   <button onClick={handleCloudSave} title="Save to Supabase Cloud" className="hover:text-emerald-400 transition-colors">
                     <CloudUpload size={14} />
                   </button>
