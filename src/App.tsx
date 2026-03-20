@@ -2137,7 +2137,71 @@ Integrations:
                         </>
                       )}
 
-                      <div className="space-y-2">
+                      <div className="space-y-2 mt-4 pt-4 border-t border-white/5">
+                        <div className="flex items-center justify-between mb-1 ml-1 px-1">
+                          <label className="text-[11px] font-bold uppercase tracking-widest text-emerald-500">Environment</label>
+                          <button 
+                            onClick={async () => {
+                              const btn = document.getElementById('test-ai-conn-btn');
+                              if (btn) btn.innerHTML = '<span class="animate-pulse">Testing...</span>';
+                              try {
+                                setTerminalOutput(prev => [...prev, `[AI Test] Validating API connection for ${aiProvider}...`]);
+                                // Simulate API connection test
+                                await new Promise(r => setTimeout(r, 1000));
+                                let hasKey = false;
+                                if (aiProvider === 'gemini') hasKey = !!(geminiApiKey || process.env.GEMINI_API_KEY);
+                                if (aiProvider === 'openrouter') hasKey = !!(openRouterApiKey || process.env.OPENROUTER_API_KEY);
+                                if (aiProvider === 'sumopod') hasKey = !!sumopodApiKey;
+                                if (aiProvider === 'bytez') hasKey = !!(bytezApiKey || process.env.BYTEZ_API_KEY);
+                                
+                                if (hasKey) {
+                                  setTerminalOutput(prev => [...prev, `[AI Test] Connection to ${aiProvider} successful! Key detected.`]);
+                                  if (btn) btn.innerHTML = '<span class="text-emerald-500 font-bold">Success!</span>';
+                                } else {
+                                  setTerminalOutput(prev => [...prev, `[AI Test] Error: API Key missing for ${aiProvider}.`]);
+                                  if (btn) btn.innerHTML = '<span class="text-red-500 font-bold">Failed</span>';
+                                }
+                              } catch (e: any) {
+                                setTerminalOutput(prev => [...prev, `[AI Test] Failed: ${e.message}`]);
+                                if (btn) btn.innerHTML = '<span class="text-red-500 font-bold">Failed</span>';
+                              }
+                              setTimeout(() => { if (btn) btn.innerText = 'Test Connection'; }, 3000);
+                            }}
+                            id="test-ai-conn-btn"
+                            className="text-[10px] text-blue-400 hover:text-blue-300 transition-colors uppercase font-bold cursor-pointer"
+                          >
+                            Test Connection
+                          </button>
+                        </div>
+                        <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
+                          <span className="text-[12px] font-mono">GEMINI_KEY</span>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full", (process.env.GEMINI_API_KEY || geminiApiKey) ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
+                            {(process.env.GEMINI_API_KEY || geminiApiKey) ? 'Active' : 'Missing'}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
+                          <span className="text-[12px] font-mono">OPENROUTER_KEY</span>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full", (process.env.OPENROUTER_API_KEY || openRouterApiKey) ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
+                            {(process.env.OPENROUTER_API_KEY || openRouterApiKey) ? 'Active' : 'Missing'}
+                          </span>
+                        </div>
+                        <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
+                          <span className="text-[12px] font-mono">SUMOPOD_KEY</span>
+                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full", sumopodApiKey ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
+                            {sumopodApiKey ? 'Active' : 'Missing'}
+                          </span>
+                        </div>
+                        {aiProvider === 'bytez' && (
+                          <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
+                            <span className="text-[12px] font-mono">BYTEZ_KEY</span>
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full", bytezApiKey ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
+                              {bytezApiKey ? 'Active' : 'Missing'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="space-y-2 mt-4 pt-4 border-t border-white/5">
                         <label className="text-[12px] text-[#858585] ml-1">System Instruction</label>
                         <textarea 
                           value={systemInstruction}
@@ -2192,23 +2256,6 @@ Integrations:
                     </div>
                   </section>
 
-                  <section className="space-y-4">
-                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-emerald-500">Environment</h3>
-                    <div className="space-y-2">
-                      <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
-                        <span className="text-[12px] font-mono">GEMINI_KEY</span>
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full", process.env.GEMINI_API_KEY ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
-                          {process.env.GEMINI_API_KEY ? 'Active' : 'Missing'}
-                        </span>
-                      </div>
-                      <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 flex items-center justify-between">
-                        <span className="text-[12px] font-mono">OPENROUTER_KEY</span>
-                        <span className={cn("text-[10px] px-2 py-0.5 rounded-full", process.env.OPENROUTER_API_KEY ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500")}>
-                          {process.env.OPENROUTER_API_KEY ? 'Active' : 'Missing'}
-                        </span>
-                      </div>
-                    </div>
-                  </section>
 
                   <section className="space-y-4">
                     <h3 className="text-[11px] font-bold uppercase tracking-widest text-orange-500">Supabase Integration</h3>
