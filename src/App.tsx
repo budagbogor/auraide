@@ -62,7 +62,15 @@ import { saveAs } from 'file-saver';
 import { SUMOPOD_MODELS, generateSumopodContent } from './services/sumopodService';
 import { SUPER_CLAUDE_SKILLS, SUPER_CLAUDE_COMMANDS, type SuperClaudeSkill } from './constants/superClaude';
 
-
+const MCP_TEMPLATES = [
+  { label: '-- Quick Add Popular Servers (Optional) --', name: '', type: 'sse', url: '' },
+  { label: 'PostgreSQL Database', name: 'Postgres', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-postgres postgres://username:password@localhost:5432/mydb' },
+  { label: 'SQLite Database', name: 'SQLite', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-sqlite --db-path database.db' },
+  { label: 'GitHub API (needs Token)', name: 'GitHub', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-github' },
+  { label: 'Google Drive', name: 'Google Drive', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-gdrive' },
+  { label: 'Brave Search', name: 'Brave Search', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-brave-search' },
+  { label: 'Supabase Database', name: 'Supabase MCP', type: 'stdio', url: 'npx -y @rectop/mcp-postgres postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres' }
+];
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -498,12 +506,28 @@ export default function App() {
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('aura_supabase_url') || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('aura_supabase_key') || '');
   const [supabaseConnected, setSupabaseConnected] = useState(false);
-  const [mcpServers, setMcpServers] = useState<{ name: string; url: string; connected: boolean }[]>(() => {
+  const [mcpServers, setMcpServers] = useState<any[]>(() => {
     const saved = localStorage.getItem('aura_mcp_servers');
-    return saved ? JSON.parse(saved) : [];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.map((p: any) => ({
+          ...p,
+          type: p.type || 'sse',
+          tools: p.tools || []
+        }));
+      } catch (e) {
+        return [];
+      }
+    }
+    return [];
   });
   const [newMcpName, setNewMcpName] = useState('');
   const [newMcpUrl, setNewMcpUrl] = useState('');
+  const [newMcpType, setNewMcpType] = useState<'sse' | 'stdio'>('sse');
+  const [newMcpEnvStr, setNewMcpEnvStr] = useState('');
+  const [showMcpLogsFor, setShowMcpLogsFor] = useState<string | null>(null);
+  const [activeMcpLogs, setActiveMcpLogs] = useState<string[]>([]);
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [aiProvider, setAiProvider] = useState<'gemini' | 'openrouter' | 'bytez' | 'sumopod'>(() => (localStorage.getItem('aiProvider') as any) || 'gemini');
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('aura_gemini_key') || process.env.GEMINI_API_KEY || '');
@@ -2237,7 +2261,25 @@ Integrations:
                     <h3 className="text-[11px] font-bold uppercase tracking-widest text-blue-400">MCP (Model Context Protocol)</h3>
                     <div className="space-y-4">
                       <div className="p-3 bg-[#333333]/50 rounded-xl border border-white/5 space-y-3">
+                        
                         <div className="space-y-2">
+                          <select 
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val !== '') {
+                                const tpl = MCP_TEMPLATES[parseInt(val)];
+                                setNewMcpName(tpl.name);
+                                setNewMcpType(tpl.type as 'sse'|'stdio');
+                                setNewMcpUrl(tpl.url);
+                              }
+                            }}
+                            className="w-full bg-blue-500/10 border border-blue-500/30 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all text-blue-400 font-bold mb-1"
+                          >
+                            {MCP_TEMPLATES.map((tpl, i) => (
+                              <option key={i} value={i === 0 ? '' : i} className="bg-[#2d2d2d] text-white font-medium">{tpl.label}</option>
+                            ))}
+                          </select>
+
                           <input 
                             type="text" 
                             placeholder="Server Name (e.g. GitHub)"
@@ -2245,22 +2287,57 @@ Integrations:
                             onChange={e => setNewMcpName(e.target.value)}
                             className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
                           />
+                          <select 
+                            value={newMcpType}
+                            onChange={e => setNewMcpType(e.target.value as any)}
+                            className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all text-[#cccccc]"
+                          >
+                            <option value="sse">SSE (Remote URL)</option>
+                            <option value="stdio">Command (Local CLI)</option>
+                          </select>
                           <input 
                             type="text" 
-                            placeholder="Server URL (SSE or WebSocket)"
+                            placeholder={newMcpType === 'sse' ? "Server URL (SSE or WebSocket)" : "Command (e.g. npx -y @modelcontextprotocol/server-...)"}
                             value={newMcpUrl}
                             onChange={e => setNewMcpUrl(e.target.value)}
                             className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
                           />
+                          {newMcpType === 'stdio' && (
+                            <textarea
+                              placeholder="Environment Variables (Optional, e.g. GITHUB_TOKEN=abc...)"
+                              value={newMcpEnvStr}
+                              onChange={e => setNewMcpEnvStr(e.target.value)}
+                              rows={2}
+                              className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all font-mono"
+                            />
+                          )}
                         </div>
                         <button 
                           onClick={() => {
                             if (!newMcpName || !newMcpUrl) return;
-                            setMcpServers(prev => [...prev, { name: newMcpName, url: newMcpUrl, connected: false }]);
+                            
+                            const parsedEnv: Record<string, string> = {};
+                            if (newMcpType === 'stdio' && newMcpEnvStr) {
+                              newMcpEnvStr.split('\n').forEach(line => {
+                                const idx = line.indexOf('=');
+                                if (idx > 0) {
+                                  const k = line.substring(0, idx).trim();
+                                  const v = line.substring(idx + 1).trim();
+                                  if (k) parsedEnv[k] = v;
+                                }
+                              });
+                            }
+
+                            setMcpServers(prev => {
+                              const updated = [...prev, { name: newMcpName, url: newMcpUrl, type: newMcpType, connected: false, tools: [], env: parsedEnv }];
+                              localStorage.setItem('aura_mcp_servers', JSON.stringify(updated.map(s => ({...s, connected: false, tools: []}))));
+                              return updated;
+                            });
                             setNewMcpName('');
                             setNewMcpUrl('');
+                            setNewMcpEnvStr('');
                           }}
-                          className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[11px] font-bold hover:bg-blue-700 transition-all"
+                          className="w-full py-1.5 bg-blue-600 text-white rounded-lg text-[11px] font-bold hover:bg-blue-700 transition-all cursor-pointer"
                         >
                           Add MCP Server
                         </button>
@@ -2268,29 +2345,81 @@ Integrations:
 
                       <div className="space-y-2">
                         {mcpServers.map((server, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-[#333333]/50 rounded-xl border border-white/5">
-                            <div className="space-y-0.5">
-                              <p className="text-[12px] font-medium text-white">{server.name}</p>
-                              <p className="text-[10px] text-[#858585] truncate max-w-[150px]">{server.url}</p>
+                          <div key={idx} className="flex flex-col p-3 bg-[#333333]/50 rounded-xl border border-white/5">
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="space-y-0.5">
+                                <p className="text-[12px] font-medium text-white">{server.name} <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 ml-1 uppercase">{server.type}</span></p>
+                                <p className="text-[10px] text-[#858585] truncate max-w-[150px]">{server.url}</p>
+                              </div>
+                              <button 
+                                onClick={async () => {
+                                  if (server.connected) {
+                                    // Disconnect logic could go here, for now just UI toggle or fetching logs
+                                    return;
+                                  }
+                                  try {
+                                    setTerminalOutput(prev => [...prev, `[MCP] Connecting to ${server.name} (${server.type})...`]);
+                                    const { mcpManager } = await import('./services/mcpService');
+                                    const tools = await mcpManager.connect({ name: server.name, serverUrl: server.url, type: server.type, env: server.env });
+                                    setMcpServers(prev => prev.map((s, i) => i === idx ? { ...s, connected: true, tools } : s));
+                                    setTerminalOutput(prev => [...prev, `[MCP] Connected! Loaded ${tools.length} tools.`]);
+                                  } catch (error: any) {
+                                    setTerminalOutput(prev => [...prev, `[MCP] Failed to connect: ${error.message || error}`]);
+                                  }
+                                }}
+                                className={cn(
+                                  "px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                                  server.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-[#3c3c3c] text-white hover:bg-[#454545]"
+                                )}
+                              >
+                                {server.connected ? 'Connected' : 'Connect'}
+                              </button>
                             </div>
-                            <button 
-                              onClick={async () => {
-                                try {
-                                  const { mcpManager } = await import('./services/mcpService');
-                                  await mcpManager.connect({ name: server.name, serverUrl: server.url });
-                                  setMcpServers(prev => prev.map((s, i) => i === idx ? { ...s, connected: true } : s));
-                                  setTerminalOutput(prev => [...prev, `[MCP] Connected to ${server.name}`]);
-                                } catch (error) {
-                                  setTerminalOutput(prev => [...prev, `[MCP] Failed to connect to ${server.name}`]);
-                                }
-                              }}
-                              className={cn(
-                                "px-3 py-1 rounded-lg text-[10px] font-bold transition-all",
-                                server.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-[#3c3c3c] text-white hover:bg-[#454545]"
-                              )}
-                            >
-                              {server.connected ? 'Connected' : 'Connect'}
-                            </button>
+                            
+                            {server.env && Object.keys(server.env).length > 0 && (
+                              <div className="mb-2">
+                                <p className="text-[10px] text-[#858585]">ENV Configured: {Object.keys(server.env).join(', ')}</p>
+                              </div>
+                            )}
+
+                            {server.connected && server.tools && server.tools.length > 0 && (
+                              <div className="mt-2 pt-2 border-t border-white/5 space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <p className="text-[10px] text-blue-400 font-bold mb-1">Available Tools:</p>
+                                  {server.type === 'stdio' && (
+                                    <button 
+                                      onClick={async () => {
+                                        if (showMcpLogsFor === server.name) {
+                                          setShowMcpLogsFor(null);
+                                        } else {
+                                          setShowMcpLogsFor(server.name);
+                                          const { mcpManager } = await import('./services/mcpService');
+                                          setActiveMcpLogs(mcpManager.getLogs(server.name));
+                                        }
+                                      }}
+                                      className="text-[10px] text-white/50 hover:text-white flex items-center gap-1"
+                                    >
+                                      <Terminal size={10} /> Logs
+                                    </button>
+                                  )}
+                                </div>
+                                
+                                {showMcpLogsFor === server.name && (
+                                  <div className="bg-black/50 rounded-lg p-2 max-h-32 overflow-y-auto font-mono text-[9px] text-zinc-300">
+                                    {activeMcpLogs.map((log, i) => <div key={i}>{log}</div>)}
+                                    {activeMcpLogs.length === 0 && <span className="text-zinc-500">No logs captured.</span>}
+                                  </div>
+                                )}
+
+                                <div className="flex flex-wrap gap-1">
+                                  {server.tools.map((t: any, tidx: number) => (
+                                    <span key={tidx} className="text-[9px] bg-white/5 border border-white/10 px-1.5 py-0.5 rounded text-white/80" title={t.description}>
+                                      {t.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
