@@ -535,17 +535,54 @@ export default function App() {
 
   const handleCloneRepo = async (repo: any) => {
     if (!githubToken) return;
+
+    let projectDirHandle: any = null;
+    try {
+      // @ts-ignore
+      const baseDirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+      // Create a subfolder for the repo
+      projectDirHandle = await baseDirHandle.getDirectoryHandle(repo.name, { create: true });
+    } catch (err) {
+      console.log('User cancelled or directory picker unsupported:', err);
+      setTerminalOutput(prev => [...prev, '[GITHUB] Clone cancelled. Please select a folder to save the repository.']);
+      return;
+    }
+
     setIsFetchingRepos(true);
-    setTerminalOutput(prev => [...prev, `[GITHUB] Cloning repository ${repo.full_name}... (This might take a moment)`]);
+    setTerminalOutput(prev => [...prev, `[GITHUB] Cloning repository ${repo.full_name} to local disk... (This might take a moment)`]);
+    
     try {
       const { cloneRepository } = await import('./services/githubService');
       const clonedFiles = await cloneRepository(githubToken, repo.owner.login, repo.name);
+      
       if (clonedFiles.length > 0) {
+        setTerminalOutput(prev => [...prev, `[SYSTEM] Saving ${clonedFiles.length} files, recreating folder structure...`]);
+        
+        // Write each file to the selected local directory maintaining structure
+        for (const file of clonedFiles) {
+          try {
+            const pathParts = file.id.split('/');
+            const fileName = pathParts.pop()!;
+            
+            let currentDir = projectDirHandle;
+            for (const dirName of pathParts) {
+              currentDir = await currentDir.getDirectoryHandle(dirName, { create: true });
+            }
+            
+            const fileHandle = await currentDir.getFileHandle(fileName, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(file.content);
+            await writable.close();
+          } catch (writeErr) {
+            console.error(`Error writing file ${file.id}:`, writeErr);
+          }
+        }
+
         setFiles(clonedFiles);
         setActiveFileId(clonedFiles[0].id);
         setProjectName(repo.name.toUpperCase());
         setSidebarTab('files');
-        setTerminalOutput(prev => [...prev, `[GITHUB] Successfully cloned ${clonedFiles.length} files from ${repo.full_name}.`]);
+        setTerminalOutput(prev => [...prev, `[GITHUB] Successfully cloned and saved to local disk: ${repo.full_name}.`]);
       } else {
         setTerminalOutput(prev => [...prev, `[GITHUB] Repository ${repo.full_name} is empty or no supported files found.`]);
       }
