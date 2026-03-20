@@ -63,13 +63,12 @@ import { SUMOPOD_MODELS, generateSumopodContent } from './services/sumopodServic
 import { SUPER_CLAUDE_SKILLS, SUPER_CLAUDE_COMMANDS, type SuperClaudeSkill } from './constants/superClaude';
 
 const MCP_TEMPLATES = [
-  { label: '-- Quick Add Popular Servers (Optional) --', name: '', type: 'sse', url: '' },
-  { label: 'PostgreSQL Database', name: 'Postgres', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-postgres postgres://username:password@localhost:5432/mydb' },
-  { label: 'SQLite Database', name: 'SQLite', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-sqlite --db-path database.db' },
-  { label: 'GitHub API (needs Token)', name: 'GitHub', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-github' },
-  { label: 'Google Drive', name: 'Google Drive', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-gdrive' },
-  { label: 'Brave Search', name: 'Brave Search', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-brave-search' },
-  { label: 'Supabase Database', name: 'Supabase MCP', type: 'stdio', url: 'npx -y @rectop/mcp-postgres postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres' }
+  { label: 'PostgreSQL Database', name: 'Postgres', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-postgres postgres://username:password@localhost:5432/mydb', defaultEnv: '' },
+  { label: 'SQLite Database', name: 'SQLite', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-sqlite --db-path database.db', defaultEnv: '' },
+  { label: 'GitHub API', name: 'GitHub', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-github', defaultEnv: 'GITHUB_PERSONAL_ACCESS_TOKEN=your_token_here' },
+  { label: 'Google Drive', name: 'Google Drive', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-gdrive', defaultEnv: '' },
+  { label: 'Brave Search', name: 'Brave Search', type: 'stdio', url: 'npx -y @modelcontextprotocol/server-brave-search', defaultEnv: 'BRAVE_API_KEY=your_api_key_here' },
+  { label: 'Supabase Database', name: 'Supabase MCP', type: 'stdio', url: 'npx -y @rectop/mcp-postgres postgres://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres', defaultEnv: '' }
 ];
 
 function cn(...inputs: ClassValue[]) {
@@ -522,10 +521,11 @@ export default function App() {
     }
     return [];
   });
-  const [newMcpName, setNewMcpName] = useState('');
-  const [newMcpUrl, setNewMcpUrl] = useState('');
-  const [newMcpType, setNewMcpType] = useState<'sse' | 'stdio'>('sse');
-  const [newMcpEnvStr, setNewMcpEnvStr] = useState('');
+  const [newMcpName, setNewMcpName] = useState(MCP_TEMPLATES[0].name);
+  const [newMcpUrl, setNewMcpUrl] = useState(MCP_TEMPLATES[0].url);
+  const [newMcpType, setNewMcpType] = useState<'sse' | 'stdio'>(MCP_TEMPLATES[0].type as any);
+  const [newMcpEnvStr, setNewMcpEnvStr] = useState(MCP_TEMPLATES[0].defaultEnv);
+  const [selectedMcpTemplateIdx, setSelectedMcpTemplateIdx] = useState<number | 'custom'>(0);
   const [showMcpLogsFor, setShowMcpLogsFor] = useState<string | null>(null);
   const [activeMcpLogs, setActiveMcpLogs] = useState<string[]>([]);
   const [editorFontSize, setEditorFontSize] = useState(14);
@@ -2311,45 +2311,63 @@ Integrations:
                         
                         <div className="space-y-2">
                           <select 
+                            value={selectedMcpTemplateIdx}
                             onChange={(e) => {
                               const val = e.target.value;
-                              if (val !== '') {
+                              setSelectedMcpTemplateIdx(val === 'custom' ? 'custom' : parseInt(val));
+                              if (val !== 'custom') {
                                 const tpl = MCP_TEMPLATES[parseInt(val)];
                                 setNewMcpName(tpl.name);
                                 setNewMcpType(tpl.type as 'sse'|'stdio');
                                 setNewMcpUrl(tpl.url);
+                                setNewMcpEnvStr(tpl.defaultEnv || '');
+                              } else {
+                                setNewMcpName('');
+                                setNewMcpUrl('');
+                                setNewMcpEnvStr('');
                               }
                             }}
-                            className="w-full bg-blue-500/10 border border-blue-500/30 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all text-blue-400 font-bold mb-1"
+                            className="w-full bg-blue-500/10 border border-blue-500/30 rounded-lg py-2 px-3 text-[13px] focus:outline-none focus:border-blue-500/50 transition-all text-blue-400 font-bold mb-1"
                           >
-                            {MCP_TEMPLATES.map((tpl, i) => (
-                              <option key={i} value={i === 0 ? '' : i} className="bg-[#2d2d2d] text-white font-medium">{tpl.label}</option>
-                            ))}
+                            <optgroup label="Popular MCP Servers" className="bg-[#2d2d2d] text-white/50">
+                              {MCP_TEMPLATES.map((tpl, i) => (
+                                <option key={i} value={i} className="bg-[#2d2d2d] text-white font-medium">{tpl.label}</option>
+                              ))}
+                            </optgroup>
+                            <option value="custom" className="bg-[#2d2d2d] text-white font-medium">Custom Server (Advanced)</option>
                           </select>
 
-                          <input 
-                            type="text" 
-                            placeholder="Server Name (e.g. GitHub)"
-                            value={newMcpName}
-                            onChange={e => setNewMcpName(e.target.value)}
-                            className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
-                          />
-                          <select 
-                            value={newMcpType}
-                            onChange={e => setNewMcpType(e.target.value as any)}
-                            className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all text-[#cccccc]"
-                          >
-                            <option value="sse">SSE (Remote URL)</option>
-                            <option value="stdio">Command (Local CLI)</option>
-                          </select>
-                          <input 
-                            type="text" 
-                            placeholder={newMcpType === 'sse' ? "Server URL (SSE or WebSocket)" : "Command (e.g. npx -y @modelcontextprotocol/server-...)"}
-                            value={newMcpUrl}
-                            onChange={e => setNewMcpUrl(e.target.value)}
-                            className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
-                          />
-                          {newMcpType === 'stdio' && (
+                          {(selectedMcpTemplateIdx === 'custom' || newMcpUrl.includes('[') || newMcpUrl.includes('username:password') || newMcpUrl === '') && (
+                            <input 
+                              type="text" 
+                              placeholder={newMcpType === 'sse' ? "Server URL (SSE or WebSocket)" : "Connection Command / URL (Edit as needed)"}
+                              value={newMcpUrl}
+                              onChange={e => setNewMcpUrl(e.target.value)}
+                              className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
+                            />
+                          )}
+
+                          {selectedMcpTemplateIdx === 'custom' && (
+                            <>
+                              <input 
+                                type="text" 
+                                placeholder="Server Name (e.g. Private DB)"
+                                value={newMcpName}
+                                onChange={e => setNewMcpName(e.target.value)}
+                                className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all"
+                              />
+                              <select 
+                                value={newMcpType}
+                                onChange={e => setNewMcpType(e.target.value as any)}
+                                className="w-full bg-[#3c3c3c] border border-white/5 rounded-lg py-1.5 px-3 text-[12px] focus:outline-none focus:border-blue-500/50 transition-all text-[#cccccc]"
+                              >
+                                <option value="sse">SSE (Remote URL)</option>
+                                <option value="stdio">Command (Local CLI)</option>
+                              </select>
+                            </>
+                          )}
+
+                          {(newMcpType === 'stdio' && (selectedMcpTemplateIdx === 'custom' || (typeof selectedMcpTemplateIdx === 'number' && MCP_TEMPLATES[selectedMcpTemplateIdx]?.defaultEnv !== undefined))) && (
                             <textarea
                               placeholder="Environment Variables (Optional, e.g. GITHUB_TOKEN=abc...)"
                               value={newMcpEnvStr}

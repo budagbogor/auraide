@@ -98,6 +98,10 @@ export class MCPManager {
     const sessionLogs: string[] = [];
     
     if (config.type === 'stdio') {
+      const isTauri = !!(window as any).__TAURI_INTERNALS__;
+      if (!isTauri) {
+        throw new Error("Local Command (stdio) MCP servers are only supported in the Desktop App version of Aura IDE. Please open the IDE via the native Windows app (or run 'npm run tauri dev'), or choose an SSE (Remote URL) server instead.");
+      }
       const stdioTransport = new TauriStdioTransport(config.serverUrl, config.env);
       stdioTransport.onlog = (log) => {
         sessionLogs.push(log);
