@@ -64,6 +64,9 @@ import { fetchUserRepos, cloneRepository, pushProjectToGitHub } from './services
 import { generateGeminiStream } from './services/geminiService';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+
+// Windows Installer / Desktop Mode Helpers
+const isTauri = !!(window as any).__TAURI_INTERNALS__;
 interface McpTemplateArg {
   key: string;
   label: string;
@@ -483,15 +486,61 @@ const GuideModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
+// --- Desktop Title Bar (Premium Trae/VS Code Style) ---
+const TitleBar = () => {
+  const [tauriWindow, setTauriWindow] = useState<any>(null);
+
+  useEffect(() => {
+    if (isTauri) {
+      import('@tauri-apps/api/window').then(m => setTauriWindow(m.getCurrentWindow()));
+    }
+  }, []);
+
+  if (!isTauri) return null;
+
+  return (
+    <div 
+      data-tauri-drag-region
+      className="h-10 bg-[#0c0c0c] border-b border-white/5 flex items-center justify-between px-4 select-none z-50 sticky top-0"
+    >
+      <div className="flex items-center gap-2 pointer-events-none">
+        <AuraLogo size={18} />
+        <span className="text-[11px] font-bold text-gray-400 tracking-widest uppercase">Aura AI IDE</span>
+      </div>
+      
+      <div className="flex-1 flex justify-center h-full items-center pointer-events-none">
+        <div className="px-3 py-1 bg-white/5 border border-white/10 rounded-md text-[11px] text-gray-400 flex items-center gap-2">
+          <Search size={12} />
+          <span>Search or type a command... (Ctrl+P)</span>
+        </div>
+      </div>
+
+      <div className="flex items-center">
+        <button onClick={() => tauriWindow?.minimize()} className="p-2 hover:bg-white/10 text-gray-400 transition-colors">
+          <svg width="12" height="12" viewBox="0 0 12 12"><rect fill="currentColor" width="10" height="1" x="1" y="6"/></svg>
+        </button>
+        <button onClick={() => tauriWindow?.toggleMaximize()} className="p-2 hover:bg-white/10 text-gray-400 transition-colors">
+          <svg width="12" height="12" viewBox="0 0 12 12"><rect fill="none" stroke="currentColor" width="9" height="9" x="1.5" y="1.5"/></svg>
+        </button>
+        <button onClick={() => tauriWindow?.close()} className="p-2 hover:bg-red-500/80 hover:text-white text-gray-400 transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [TauriCommand, setTauriCommand] = useState<any>(null);
   const [tauriDialog, setTauriDialog] = useState<any>(null);
+  const [tauriFs, setTauriFs] = useState<any>(null);
   const [nativeProjectPath, setNativeProjectPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).__TAURI_INTERNALS__) {
       import('@tauri-apps/plugin-shell').then(m => { setTauriCommand(() => m.Command); });
       import('@tauri-apps/plugin-dialog').then(m => { setTauriDialog(m); });
+      import('@tauri-apps/plugin-fs').then(m => { setTauriFs(m); });
     }
   }, []);
 
@@ -518,7 +567,7 @@ export default function App() {
         setShowFileSearch(true);
       } else if (e.ctrlKey && e.key === 's') {
         e.preventDefault();
-        setTerminalOutput(prev => [...prev, `[SYSTEM] File saved: ${activeFile?.name || 'Unknown'}`]);
+        handleSaveFile();
       } else if (e.key === 'Escape') {
         setShowCommandPalette(false);
         setShowFileSearch(false);
@@ -1070,6 +1119,44 @@ Integrations:
     }
   };
 
+  const syncFilesFromNativePath = async (rootPath: string) => {
+    if (!tauriFs) return;
+    const newFiles: FileItem[] = [];
+
+    async function scanNative(currentPath: string) {
+      const entries = await tauriFs.readDir(currentPath);
+      for (const entry of entries) {
+        const fullPath = `${currentPath}/${entry.name}`;
+        if (entry.isDirectory) {
+          await scanNative(fullPath);
+        } else if (entry.isFile) {
+          const content = await tauriFs.readTextFile(fullPath);
+          const ext = entry.name.split('.').pop();
+          newFiles.push({
+            id: fullPath, // Use full path as ID for native files
+            name: entry.name,
+            content: content,
+            language: ext === 'ts' || ext === 'tsx' ? 'typescript' : ext === 'js' || ext === 'jsx' ? 'javascript' : ext || 'plaintext'
+          });
+        }
+      }
+    }
+
+    try {
+      await scanNative(rootPath);
+      if (newFiles.length > 0) {
+        setFiles(newFiles);
+        setActiveFileId(newFiles[0].id);
+        const folderName = rootPath.split(/[\\/]/).pop() || rootPath;
+        setProjectName(folderName.toUpperCase());
+        setTerminalOutput(prev => [...prev, `[NATIVE] Sync lengkap: ${newFiles.length} file dimuat dari ${rootPath}`]);
+      }
+    } catch (err: any) {
+      console.error('Scan Native Error:', err);
+      setTerminalOutput(prev => [...prev, `[ERROR] Gagal memindai folder: ${err.message}`]);
+    }
+  };
+
   const openFolderNative = async () => {
     if (!tauriDialog) {
       alert("Fitur Native Dialog hanya tersedia di aplikasi Desktop (.exe).");
@@ -1084,13 +1171,14 @@ Integrations:
       });
 
       if (selected && typeof selected === 'string') {
-        setNativeProjectPath(selected);
-        setTerminalOutput(prev => [...prev, `[SYSTEM] Folder Native dipilih: ${selected}`, '[SYSTEM] Mendeteksi file...']);
+        const normalizedPath = selected.replace(/\\/g, '/');
+        setNativeProjectPath(normalizedPath);
+        setTerminalOutput(prev => [...prev, `[SYSTEM] Folder Native dipilih: ${normalizedPath}`, '[SYSTEM] Menyinkronkan file...']);
         
-        // Use Tauri FS or just inform the user we are in native mode
-        // For efficiency, we will still use the web files state but the terminal will point to this real path
-        setTerminalOutput(prev => [...prev, '[SYSTEM] Terminal sekarang mengacu pada direktori ini. Perintah npm/git kini dapat dijalankan.']);
-        alert("Folder berhasil terhubung secara Native! Terminal sekarang siap menjalankan perintah npm/git.");
+        await syncFilesFromNativePath(normalizedPath);
+        
+        setTerminalOutput(prev => [...prev, '[SYSTEM] Terminal & Editor kini terhubung langsung ke Disk lokal.']);
+        alert("Sinkronisasi Native Berhasil! Anda sekarang bekerja langsung di file sistem PC Anda.");
       }
     } catch (err: any) {
       console.error('Native Dialog Error:', err);
@@ -1279,10 +1367,14 @@ Integrations:
       } else if (cmd === 'npm build') {
         setTerminalOutput(prev => [...prev, '> aura-project@1.0.0 build', '> tsc && vite build', '', 'vite v4.4.9 building for production...', 'transforming...', '✓ 123 modules transformed.', 'rendering chunks...', 'dist/index.html                  0.45 kB', 'dist/assets/index-12345678.js    123.45 kB │ gzip: 45.67 kB', 'dist/assets/index-12345678.css   12.34 kB │ gzip: 3.45 kB', '✓ built in 1.23s']);
       } else if (cmd.startsWith('npm install')) {
+        if (TauriCommand && nativeProjectPath) {
+          // Handled by reali execution above, but we can provide explicit success message
+          return;
+        }
         setTerminalOutput(prev => [...prev, 
-          '[AURA INFO] Fitur "npm install" tidak dapat dijalankan langsung di dalam browser karena batasan keamanan (sandboxing).', 
-          'Silakan jalankan perintah ini di TERMINAL ASLI komputer Anda (PowerShell/CMD).',
-          'Aura IDE hanya mensimulasikan output terminal untuk tujuan visual & workflow.'
+          '[AURA INFO] Fitur "npm install" hanya dapat dijalankan langsung dalam mode Native Desktop.', 
+          'Silakan pilih folder proyek secara Native (Ikon Kuning) untuk mengaktifkan fitur ini.',
+          'Aura IDE hanya mensimulasikan output terminal untuk tujuan visual dalam mode Web.'
         ]);
       } else {
         setTerminalOutput(prev => [...prev, `Command not found: ${val}`]);
@@ -1389,30 +1481,11 @@ Integrations:
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-[#1e1e1e] text-[#cccccc] select-none font-sans overflow-hidden">
-      {/* Top Title Bar */}
-      {!zenMode && (
-        <div className="h-8 bg-[#181818] border-b border-white/5 flex items-center justify-between px-4 z-[60]">
-          <div className="flex items-center gap-2">
-            <AuraLogo size={14} />
-            <span className="text-[10px] font-bold tracking-widest text-[#858585] uppercase">Aura AI IDE</span>
-          </div>
-          
-          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5">
-            <Folder size={12} className="text-blue-500" />
-            <span className="text-[11px] font-bold text-[#cccccc]">{projectName}</span>
-          </div>
-
-          <div className="flex items-center gap-4 text-[11px] text-[#858585]">
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => setShowGuideModal(true)}>Guide</span>
-            <span className="hover:text-white cursor-pointer transition-colors" onClick={() => setShowCommandPalette(true)}>Commands</span>
-          </div>
-        </div>
-      )}
-
+    <div className="flex flex-col h-screen text-gray-300 font-sans selection:bg-blue-500/30 bg-[#0c0c0c] overflow-hidden">
+      <TitleBar />
       <div 
         className={cn(
-          "flex flex-1 overflow-hidden transition-all duration-300",
+          "flex-1 flex overflow-hidden transition-all duration-300",
           layoutMode === 'modern' ? "flex-row-reverse" : "flex-row"
         )}
       >
@@ -2927,17 +3000,18 @@ Integrations:
               </div>
             </div>
           )}
-          
           {activeFile && (
-            <div className="flex-1 flex flex-col min-w-0 transition-all duration-300">
-              {/* Breadcrumbs */}
-              <div className="h-7 bg-[#1e1e1e] flex items-center px-4 gap-2 text-[11px] text-[#858585] border-b border-white/5">
+            <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
+              {/* Breadcrumbs / Editor Header */}
+              <div className="h-9 bg-[#1e1e1e] border-b border-white/5 flex items-center px-4 gap-2 text-[11px] text-gray-500 overflow-x-auto whitespace-nowrap scrollbar-hide">
                 <Folder size={12} />
                 <span>{projectName.toLowerCase()}</span>
-                <ChevronRight size={10} />
+                <ChevronRight size={12} className="opacity-40" />
                 {getFileIcon(activeFile.name)}
-                <span className="text-[#cccccc] font-medium">{activeFile.name}</span>
+                <span className="text-gray-300 font-medium">{activeFile.name}</span>
+                {nativeProjectPath && <span className="ml-2 px-1.5 py-0.5 bg-yellow-500/10 text-yellow-500/80 rounded text-[9px] border border-yellow-500/10">NATIVE SYNC ON</span>}
               </div>
+
               <div className="flex-1 relative">
                 <Editor
                   height="100%"
