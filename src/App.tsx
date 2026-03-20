@@ -48,7 +48,9 @@ import {
   HelpCircle,
   BookOpen,
   Keyboard,
-  FolderTree
+  FolderTree,
+  CloudUpload,
+  CloudDownload
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -57,10 +59,9 @@ import { twMerge } from 'tailwind-merge';
 import { getGeminiAI } from './services/geminiService';
 import { FREE_MODELS, generateOpenRouterContent, fetchFreeModels, type OpenRouterModel } from './services/openRouterService';
 import { BYTEZ_MODELS, generateBytezContent } from './services/bytezService';
+import { saveProjectToCloud, loadProjectFromCloud, listCloudProjects } from './services/supabaseService';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
-import { SUMOPOD_MODELS, generateSumopodContent } from './services/sumopodService';
-import { SUPER_CLAUDE_SKILLS, SUPER_CLAUDE_COMMANDS, type SuperClaudeSkill } from './constants/superClaude';
 interface McpTemplateArg {
   key: string;
   label: string;
@@ -1074,6 +1075,71 @@ Integrations:
     setTerminalOutput(prev => [...prev, 'Project exported as aura-project.zip']);
   };
 
+  const DEFAULT_SUPABASE_URL = 'https://ngbzuagtzlepqutnkfeo.supabase.co';
+  const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5nYnp1YWd0emxlcHF1dG5rZmVvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NzgzOTcsImV4cCI6MjA4OTU1NDM5N30.x5hacVx08FJboVxTIPJaXIOF9XG2axc8AzF7qmQV1DM';
+
+  const handleCloudSave = async () => {
+    const activeUrl = supabaseUrl || DEFAULT_SUPABASE_URL;
+    const activeKey = supabaseAnonKey || DEFAULT_SUPABASE_KEY;
+    
+    if (!activeUrl || !activeKey) {
+      alert("Kredensial Cloud belum dikonfigurasi.");
+      return;
+    }
+    const name = prompt("Simpan ke Supabase Cloud dengan Nama Project:", projectName);
+    if (!name) return;
+    
+    setTerminalOutput(prev => [...prev, `[CLOUD] Mengekspor ${files.length} file ke Supabase...`]);
+    try {
+      await saveProjectToCloud({ url: activeUrl, anonKey: activeKey }, name, files);
+      setProjectName(name);
+      setTerminalOutput(prev => [...prev, `[CLOUD] Project '${name}' berhasil disimpan menggunakan ${supabaseUrl ? 'Database Custom (Pengguna)' : 'Database Default Aura'}!`]);
+      alert("Berhasil disimpan ke Cloud!");
+    } catch (err: any) {
+      console.error(err);
+      setTerminalOutput(prev => [...prev, `[CLOUD ERROR] ${err.message}`]);
+      alert("Gagal menyimpan ke Cloud. Lihat output terminal untuk detailnya.");
+    }
+  };
+
+  const handleCloudLoad = async () => {
+    const activeUrl = supabaseUrl || DEFAULT_SUPABASE_URL;
+    const activeKey = supabaseAnonKey || DEFAULT_SUPABASE_KEY;
+
+    if (!activeUrl || !activeKey) {
+      alert("Kredensial Cloud belum dikonfigurasi.");
+      return;
+    }
+    try {
+      setTerminalOutput(prev => [...prev, `[CLOUD] Mengambil daftar proyek dari ${supabaseUrl ? 'Database Custom' : 'Database Default'}...`]);
+      const list = await listCloudProjects({ url: activeUrl, anonKey: activeKey });
+      
+      if (!list || list.length === 0) {
+        alert("Belum ada project yang tersimpan di Cloud.");
+        return;
+      }
+      
+      const names = list.map((l: any) => l.project_name).join("\n- ");
+      const name = prompt(`Pilih nama project untuk dimuat:\n\n- ${names}\n\n(Ketik nama project persis seperti di atas)`);
+      
+      if (!name) return;
+      
+      setTerminalOutput(prev => [...prev, `[CLOUD] Mengunduh project '${name}'...`]);
+      const project = await loadProjectFromCloud({ url: activeUrl, anonKey: activeKey }, name);
+      
+      if (project && project.files) {
+        setFiles(project.files);
+        if (project.files.length > 0) setActiveFileId(project.files[0].id);
+        setProjectName(project.project_name);
+        setTerminalOutput(prev => [...prev, `[CLOUD] Project '${project.project_name}' berhasil dimuat dengan ${project.files.length} file!`]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setTerminalOutput(prev => [...prev, `[CLOUD ERROR] ${err.message}`]);
+      alert(`Gagal memuat dari Cloud: ${err.message}`);
+    }
+  };
+
   const [terminalInput, setTerminalInput] = useState('');
 
   const handleTerminalCommand = async (e: React.KeyboardEvent) => {
@@ -1595,13 +1661,19 @@ Integrations:
                   <button onClick={createNewFile} title="New File" className="hover:text-white transition-colors">
                     <Plus size={14} />
                   </button>
-                  <button onClick={openFolder} title="Open Folder" className="hover:text-white transition-colors">
+                  <button onClick={openFolder} title="Open Folder Lokal" className="hover:text-white transition-colors">
                     <FolderOpen size={14} />
+                  </button>
+                  <button onClick={handleCloudSave} title="Save to Supabase Cloud" className="hover:text-emerald-400 transition-colors">
+                    <CloudUpload size={14} />
+                  </button>
+                  <button onClick={handleCloudLoad} title="Load from Supabase Cloud" className="hover:text-blue-400 transition-colors">
+                    <CloudDownload size={14} />
                   </button>
                   <button onClick={closeFolder} title="Close Folder" className="hover:text-red-400 transition-colors">
                     <X size={14} />
                   </button>
-                  <button onClick={exportProject} title="Export Project" className="hover:text-white transition-colors">
+                  <button onClick={exportProject} title="Export Project (ZIP)" className="hover:text-white transition-colors">
                     <Download size={14} />
                   </button>
                 </div>
