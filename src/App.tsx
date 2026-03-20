@@ -2394,6 +2394,10 @@ Integrations:
                             }
 
                             setMcpServers(prev => {
+                              if (prev.some(s => s.name === newMcpName)) {
+                                setTerminalOutput(logs => [...logs, `[MCP] A server named '${newMcpName}' already exists. Please use a different name.`]);
+                                return prev;
+                              }
                               const updated = [...prev, { name: newMcpName, url: newMcpUrl, type: newMcpType, connected: false, tools: [], env: parsedEnv }];
                               localStorage.setItem('aura_mcp_servers', JSON.stringify(updated.map(s => ({...s, connected: false, tools: []}))));
                               return updated;
@@ -2416,29 +2420,44 @@ Integrations:
                                 <p className="text-[12px] font-medium text-white">{server.name} <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/70 ml-1 uppercase">{server.type}</span></p>
                                 <p className="text-[10px] text-[#858585] truncate max-w-[150px]">{server.url}</p>
                               </div>
-                              <button 
-                                onClick={async () => {
-                                  if (server.connected) {
-                                    // Disconnect logic could go here, for now just UI toggle or fetching logs
-                                    return;
-                                  }
-                                  try {
-                                    setTerminalOutput(prev => [...prev, `[MCP] Connecting to ${server.name} (${server.type})...`]);
-                                    const { mcpManager } = await import('./services/mcpService');
-                                    const tools = await mcpManager.connect({ name: server.name, serverUrl: server.url, type: server.type, env: server.env });
-                                    setMcpServers(prev => prev.map((s, i) => i === idx ? { ...s, connected: true, tools } : s));
-                                    setTerminalOutput(prev => [...prev, `[MCP] Connected! Loaded ${tools.length} tools.`]);
-                                  } catch (error: any) {
-                                    setTerminalOutput(prev => [...prev, `[MCP] Failed to connect: ${error.message || error}`]);
-                                  }
-                                }}
-                                className={cn(
-                                  "px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
-                                  server.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-[#3c3c3c] text-white hover:bg-[#454545]"
-                                )}
-                              >
-                                {server.connected ? 'Connected' : 'Connect'}
-                              </button>
+                              <div className="flex items-center gap-1.5">
+                                <button 
+                                  onClick={async () => {
+                                    if (server.connected) {
+                                      // Disconnect logic could go here, for now just UI toggle or fetching logs
+                                      return;
+                                    }
+                                    try {
+                                      setTerminalOutput(prev => [...prev, `[MCP] Connecting to ${server.name} (${server.type})...`]);
+                                      const { mcpManager } = await import('./services/mcpService');
+                                      const tools = await mcpManager.connect({ name: server.name, serverUrl: server.url, type: server.type, env: server.env });
+                                      setMcpServers(prev => prev.map((s, i) => i === idx ? { ...s, connected: true, tools } : s));
+                                      setTerminalOutput(prev => [...prev, `[MCP] Connected! Loaded ${tools.length} tools.`]);
+                                    } catch (error: any) {
+                                      setTerminalOutput(prev => [...prev, `[MCP] Failed to connect: ${error.message || error}`]);
+                                    }
+                                  }}
+                                  className={cn(
+                                    "px-3 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer",
+                                    server.connected ? "bg-emerald-500/10 text-emerald-500" : "bg-[#3c3c3c] text-white hover:bg-[#454545]"
+                                  )}
+                                >
+                                  {server.connected ? 'Connected' : 'Connect'}
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setMcpServers(prev => {
+                                      const updated = prev.filter((_, i) => i !== idx);
+                                      localStorage.setItem('aura_mcp_servers', JSON.stringify(updated.map(s => ({...s, connected: false, tools: []}))));
+                                      return updated;
+                                    });
+                                  }}
+                                  className="p-1 rounded text-[#858585] hover:text-red-400 hover:bg-red-400/10 transition-all cursor-pointer"
+                                  title="Remove Server"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
                             </div>
                             
                             {server.env && Object.keys(server.env).length > 0 && (
