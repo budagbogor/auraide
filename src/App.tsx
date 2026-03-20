@@ -1092,8 +1092,8 @@ Integrations:
           const program = parts[0];
           const args = parts.slice(1);
 
-          // We use 'cmd /c' on Windows for better compatibility with npm/git in path
-          const fullCmd = TauriCommand.create('cmd', ['/c', val]);
+          // We use 'powershell' on Windows for better compatibility and full command access natively
+          const fullCmd = TauriCommand.create('powershell', ['-Command', val]);
           
           fullCmd.onStdout.addListener((data: string) => {
             setTerminalOutput(prev => [...prev, data]);
@@ -1107,7 +1107,7 @@ Integrations:
           return;
         } catch (err) {
           console.error('Tauri Shell Error:', err);
-          setTerminalOutput(prev => [...prev, `[SYSTEM ERROR] Gagal menjalankan perintah: ${err instanceof Error ? err.message : 'Unknown error'}`]);
+          setTerminalOutput(prev => [...prev, `[SYSTEM ERROR] Gagal menjalankan PowerShell: ${err instanceof Error ? err.message : 'Unknown error'}`]);
         }
       }
       
