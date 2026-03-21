@@ -3,24 +3,25 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/utils/cn';
 import { getFileIcon } from '@/utils/icons';
 import Markdown from 'react-markdown';
+import { AuraLogo } from '@/components/layout/AuraLogo';
 import { 
   FileCode, Search, Sparkles, GitBranch, Github, Globe, HelpCircle, 
   Settings, ChevronRight, X, RotateCcw, Monitor, Smartphone, Layout, 
   Eye, FolderOpen, Download, Terminal, Plus, CloudUpload, CloudDownload,
   FolderTree, RefreshCw, Bot, User, ImageIcon, FileIcon, Paperclip, Send,
-  Cpu, ExternalLink, CheckCircle, AlertTriangle, Play, ChevronDown
+  Cpu, ExternalLink, CheckCircle, AlertTriangle, Play, ChevronDown, Database
 } from 'lucide-react';
 import { FileItem, ChatMessage, CodeProblem, McpServer, TerminalSession } from '@/types';
 import { 
-  FREE_MODELS, BYTEZ_MODELS, SUMOPOD_MODELS, 
+  FREE_MODELS, BYTEZ_MODELS, SUMOPOD_MODELS, GEMINI_MODELS,
   SUPER_CLAUDE_SKILLS, SUPER_CLAUDE_COMMANDS, MCP_TEMPLATES 
 } from '@/utils/constants';
 
 interface SidebarProps {
   layoutMode: 'classic' | 'modern';
   zenMode: boolean;
-  sidebarTab: 'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser';
-  setSidebarTab: (tab: 'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser') => void;
+  sidebarTab: 'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser' | 'database';
+  setSidebarTab: (tab: 'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser' | 'database') => void;
   sidebarWidth: number;
   setSidebarWidth: (width: number) => void;
   isResizingSidebar: boolean;
@@ -44,6 +45,7 @@ interface SidebarProps {
   handleFileUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
   chatEndRef: React.RefObject<HTMLDivElement>;
+  githubUser: any | null;
   githubConnected: boolean;
   setGithubConnected: (connected: boolean) => void;
   githubToken: string;
@@ -131,6 +133,11 @@ interface SidebarProps {
   setShowMcpLogsFor: (name: string | null) => void;
   activeMcpLogs: string[];
   setActiveMcpLogs: (logs: string[]) => void;
+  testSupabase: () => Promise<void>;
+  testingStatus: Record<string, 'idle' | 'loading' | 'success' | 'error'>;
+  testAiConnection: (provider: 'gemini' | 'openrouter' | 'bytez' | 'sumopod') => Promise<void>;
+  testGithubConnection: () => Promise<void>;
+  testError: Record<string, string>;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -140,7 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   fileSearchInput, setFileSearchInput, chatMessages, setChatMessages,
   chatInput, setChatInput, isAiLoading, handleSendMessage,
   attachedFiles, setAttachedFiles, removeAttachment, handleFileUpload,
-  fileInputRef, chatEndRef, githubConnected, setGithubConnected,
+  fileInputRef, chatEndRef, githubUser, githubConnected, setGithubConnected,
   githubToken, setGithubToken, githubRepos, setGithubRepos,
   isFetchingRepos, setIsFetchingRepos, repoSearchInput, setRepoSearchInput,
   handleCloneRepo, browserUrl, setBrowserUrl, browserSrcDoc, setBrowserSrcDoc,
@@ -162,8 +169,46 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedMcpTemplateIdx, setSelectedMcpTemplateIdx, mcpTemplateData, setMcpTemplateData,
   newMcpName, setNewMcpName, newMcpType, setNewMcpType,
   newMcpUrl, setNewMcpUrl, newMcpEnvStr, setNewMcpEnvStr,
-  showMcpLogsFor, setShowMcpLogsFor, activeMcpLogs, setActiveMcpLogs
+  showMcpLogsFor, setShowMcpLogsFor, activeMcpLogs, setActiveMcpLogs,
+  testSupabase, testingStatus, testAiConnection,
+  testGithubConnection, testError
 }) => {
+
+  const ConnectionStatus: React.FC<{ 
+    status: 'idle' | 'loading' | 'success' | 'error', 
+    error?: string,
+    onTest: () => void,
+    label?: string
+  }> = ({ status, error, onTest, label = "Test Connection" }) => {
+    return (
+      <div className="flex flex-col gap-2 mt-1">
+        <button 
+          onClick={onTest}
+          disabled={status === 'loading'}
+          className={cn(
+            "flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border",
+            status === 'success' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" :
+            status === 'error' ? "bg-red-500/10 border-red-500/30 text-red-400" :
+            "bg-white/5 border-white/10 text-gray-400 hover:bg-white/10"
+          )}
+        >
+          {status === 'loading' ? (
+            <RefreshCw size={12} className="animate-spin" />
+          ) : status === 'success' ? (
+            <CheckCircle size={12} />
+          ) : status === 'error' ? (
+            <AlertTriangle size={12} />
+          ) : (
+            <Play size={12} />
+          )}
+          {status === 'loading' ? 'Testing...' : status === 'success' ? 'Connected' : status === 'error' ? 'Failed' : label}
+        </button>
+        {status === 'error' && error && (
+          <p className="text-[9px] text-red-400/70 italic px-1 leading-tight">{error}</p>
+        )}
+      </div>
+    );
+  };
 
   if (zenMode) return null;
 
@@ -212,6 +257,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           className={cn("p-2.5 cursor-pointer transition-all duration-200 rounded-xl group relative", sidebarTab === 'github' ? "text-white bg-blue-600/20 shadow-lg shadow-blue-500/10" : "text-[#858585] hover:text-white hover:bg-white/5")}
         >
           <Github size={24} className={cn("transition-transform duration-200", sidebarTab === 'github' && "scale-110")} />
+          {githubConnected && (
+            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-emerald-500 border border-[#333] shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+          )}
           {sidebarTab === 'github' && <motion.div layoutId="activeTab" className="absolute left-[-12px] w-1 h-8 bg-blue-500 rounded-r-full" />}
         </div>
         <div 
@@ -221,6 +269,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           <Globe size={24} className={cn("transition-transform duration-200", sidebarTab === 'browser' && "scale-110")} />
           {sidebarTab === 'browser' && <motion.div layoutId="activeTab" className="absolute left-[-12px] w-1 h-8 bg-blue-500 rounded-r-full" />}
+        </div>
+        <div 
+          onClick={() => setSidebarTab('database')}
+          title="Database Explorer"
+          className={cn("p-2.5 cursor-pointer transition-all duration-200 rounded-xl group relative", sidebarTab === 'database' ? "text-white bg-blue-600/20 shadow-lg shadow-blue-500/10" : "text-[#858585] hover:text-white hover:bg-white/5")}
+        >
+          <Database size={24} className={cn("transition-transform duration-200", sidebarTab === 'database' && "scale-110")} />
+          {sidebarTab === 'database' && <motion.div layoutId="activeTab" className="absolute left-[-12px] w-1 h-8 bg-blue-500 rounded-r-full" />}
         </div>
         <div className="mt-auto flex flex-col gap-2 w-full items-center">
           <div 
@@ -276,6 +332,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {sidebarTab === 'github' && 'GitHub'}
             {sidebarTab === 'settings' && 'Settings'}
             {sidebarTab === 'browser' && 'Browser'}
+            {sidebarTab === 'database' && 'Database Explorer'}
           </span>
           <div className="flex gap-2.5">
             {sidebarTab === 'ai' && (
@@ -364,104 +421,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </motion.div>
             )}
-
-            {/* GIT TAB */}
-            {sidebarTab === 'git' && (
-              <motion.div 
-                key="git"
-                initial={{ opacity: 0, x: -10 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col p-4 gap-4"
-              >
-                <p className="text-[11px] text-[#858585] italic leading-tight">
-                  {isTauri ? 'Native project detected. Git commands will run in your system terminal.' : 'Simulated Git mode (Web). Build Desktop to use real Git.'}
-                </p>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                      <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Changes</div>
-                      <div className="space-y-1">
-                        {files.slice(0, 3).map(f => (
-                          <div key={f.id} className="flex items-center justify-between text-[12px] px-2 py-1.5 hover:bg-white/5 rounded-lg group">
-                            <div className="flex items-center gap-2 truncate">
-                              {getFileIcon(f.name)}
-                              <span className="truncate">{f.name}</span>
-                            </div>
-                            <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">M</span>
-                          </div>
-                        ))}
-                        {files.length > 3 && <p className="text-[10px] text-gray-500 text-center mt-2">... and {files.length - 3} other files</p>}
-                      </div>
-                  </div>
-                  <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/5">
-                    <input 
-                      type="text" 
-                      placeholder="Commit message (Ctrl+Enter to commit)"
-                      className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-blue-500/50 transition-colors"
-                    />
-                    <button 
-                      onClick={() => {
-                        const msg = "chore: updates from AURA IDE";
-                        executeCommand(`git add . ; git commit -m "${msg}" ; git push`);
-                      }}
-                      className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-[12px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
-                    >
-                      <GitBranch size={14} /> Commit & Push
-                    </button>
-                    <p className="text-[10px] text-center text-gray-500 opacity-60">One-click automation v4.0.0</p>
-                  </div>
-                </div>
-              </motion.div>
-            )}
-
+            
             {/* SEARCH TAB */}
             {sidebarTab === 'search' && (
               <motion.div 
                 key="search"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 space-y-4"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex flex-col p-4 gap-4"
               >
                 <div className="relative group">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#858585] group-focus-within:text-blue-500 transition-colors" size={14} />
                   <input 
                     type="text" 
-                    placeholder="Search files and content..."
-                    value={fileSearchInput}
-                    onChange={e => setFileSearchInput(e.target.value)}
-                    className="w-full bg-[#3c3c3c] border border-white/5 rounded-md py-1.5 pl-9 pr-3 text-[13px] focus:outline-none focus:border-blue-500/50 transition-all"
+                    placeholder="Search text in files..."
+                    className="w-full bg-[#3c3c3c] border border-white/5 rounded-md py-1.5 pl-9 pr-3 text-[13px] focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+                    autoFocus
                   />
                 </div>
-                <div className="space-y-2 overflow-y-auto max-h-[calc(100vh-150px)] custom-scrollbar">
-                  {fileSearchInput && files.filter(f => 
-                    f.name.toLowerCase().includes(fileSearchInput.toLowerCase()) || 
-                    f.content.toLowerCase().includes(fileSearchInput.toLowerCase())
-                  ).map(file => (
-                    <div 
-                      key={file.id}
-                      onClick={() => setActiveFileId(file.id)}
-                      className="p-2 rounded hover:bg-[#37373d] cursor-pointer group transition-colors"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <FileCode size={12} className="text-blue-400" />
-                        <span className="text-[12px] font-medium text-[#cccccc] group-hover:text-white">{file.name}</span>
-                      </div>
-                      {file.content.toLowerCase().includes(fileSearchInput.toLowerCase()) && (
-                        <div className="text-[10px] text-[#858585] line-clamp-2 font-mono bg-black/20 p-1 rounded">
-                          {file.content.split('\n').find(line => line.toLowerCase().includes(fileSearchInput.toLowerCase()))?.trim()}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                  {!fileSearchInput && (
-                    <div className="text-center py-10 opacity-30">
-                      <Search size={32} className="mx-auto mb-2" />
-                      <p className="text-[11px]">Type to search across project</p>
-                    </div>
-                  )}
+                <div className="flex flex-col gap-2 mt-2">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest font-bold px-1">Results</p>
+                  <div className="text-center py-10 opacity-30 italic text-[11px]">No search results yet</div>
                 </div>
               </motion.div>
             )}
@@ -470,55 +451,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {sidebarTab === 'ai' && (
               <motion.div 
                 key="ai"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.2 }}
-                className="flex flex-col h-full"
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                className="flex flex-col h-full overflow-hidden"
               >
+                {/* Chat Messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-                  {chatMessages.length === 0 && (
-                    <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
-                      <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
-                        <Sparkles size={24} className="text-white" />
-                      </div>
-                      <div>
-                        <p className="text-[13px] font-medium text-white">Aura AI Assistant</p>
-                        <p className="text-[11px]">How can I help you build today?</p>
-                      </div>
-                    </div>
-                  )}
                   {chatMessages.map((msg, i) => (
-                    <motion.div 
-                      key={i} 
-                      initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      className={cn(
-                        "flex flex-col gap-1 max-w-[90%]",
-                        msg.role === 'user' ? "ml-auto items-end" : "mr-auto items-start"
-                      )}
-                    >
+                    <div key={i} className={cn("flex flex-col gap-2", msg.role === 'user' ? "items-end" : "items-start")}>
+                      <div className="flex items-center gap-2 opacity-50 px-2">
+                        {msg.role === 'user' ? (
+                          <>
+                            <span className="text-[10px] font-bold uppercase tracking-tighter">You</span>
+                            <div className="w-5 h-5 rounded-lg bg-blue-600/20 flex items-center justify-center text-blue-400"><User size={12} /></div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-5 h-5 rounded-lg bg-purple-600/20 flex items-center justify-center text-purple-400"><Bot size={12} /></div>
+                            <span className="text-[10px] font-bold uppercase tracking-tighter text-purple-400 italic">Aura AI</span>
+                          </>
+                        )}
+                      </div>
                       <div className={cn(
-                        "px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed shadow-lg transition-all duration-300",
+                        "max-w-[90%] p-3 rounded-2xl text-[13px] leading-relaxed shadow-lg",
                         msg.role === 'user' 
-                          ? "bg-gradient-to-br from-blue-600 to-blue-700 text-white rounded-tr-none shadow-blue-500/10" 
-                          : "bg-[#3c3c3c] text-[#cccccc] rounded-tl-none border border-white/5 shadow-black/20"
+                          ? "bg-blue-600 text-white rounded-tr-none border border-blue-500/30" 
+                          : "bg-[#2d2d2d] text-gray-200 rounded-tl-none border border-white/5"
                       )}>
-                        <div className="markdown-body prose prose-invert prose-sm max-w-none">
-                          <Markdown
+                        <div className="prose prose-invert prose-sm max-w-none">
+                          <Markdown 
                             components={{
                               code({ node, inline, className, children, ...props }: any) {
                                 const match = /language-(\w+)/.exec(className || '');
-                                return !inline && match ? (
-                                  <div className="relative group/code">
-                                    <pre className={className} {...props}>
-                                      {children}
+                                return !inline ? (
+                                  <div className="relative group my-2">
+                                    <pre className="bg-black/50 p-3 rounded-xl border border-white/5 overflow-x-auto">
+                                      <code className={className} {...props}>{children}</code>
                                     </pre>
                                   </div>
                                 ) : (
-                                  <code className={className} {...props}>
-                                    {children}
-                                  </code>
+                                  <code className="bg-black/30 px-1 rounded text-blue-400" {...props}>{children}</code>
                                 );
                               }
                             }}
@@ -527,46 +500,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           </Markdown>
                         </div>
                       </div>
-                      <span className="text-[10px] text-[#858585] px-1 uppercase tracking-widest font-bold flex items-center gap-1">
-                        {msg.role === 'user' ? <User size={10} /> : <Bot size={10} />}
-                        {msg.role === 'user' ? 'You' : 'Aura AI'}
-                      </span>
-                    </motion.div>
+                    </div>
                   ))}
                   {isAiLoading && (
-                    <div className="flex items-center gap-2 text-[#858585] text-[11px] animate-pulse">
-                      <div className="flex gap-1">
-                        <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '0ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                        <div className="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '300ms' }} />
-                      </div>
-                      Aura is thinking...
+                    <div className="flex items-start gap-2 animate-pulse">
+                      <div className="w-5 h-5 rounded-lg bg-purple-600/20 flex items-center justify-center text-purple-400"><Bot size={12} /></div>
+                      <div className="bg-[#2d2d2d] h-8 w-24 rounded-2xl rounded-tl-none border border-white/5" />
                     </div>
                   )}
                   <div ref={chatEndRef} />
                 </div>
 
-                <div className="p-4 border-t border-white/5 bg-[#252526]/80 backdrop-blur-md flex flex-col">
-                  {attachedFiles.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-2">
-                      {attachedFiles.map((file, i) => (
-                        <div key={i} className="relative group">
-                          <div className="flex items-center gap-2 bg-[#3c3c3c] border border-white/10 rounded-lg px-2 py-1 text-[10px] max-w-[100px] truncate">
-                            {file.type.startsWith('image/') ? <ImageIcon size={10} /> : <FileIcon size={10} />}
-                            {file.name}
-                          </div>
-                          <button 
-                            onClick={() => removeAttachment(i)}
-                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X size={8} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="relative flex-1">
+                {/* Chat Input Container */}
+                <div className="p-4 border-t border-white/5 bg-[#252526]/50 backdrop-blur-md">
+                  <div className="relative bg-[#1e1e1e] border border-white/10 rounded-2xl focus-within:border-blue-500/50 transition-all p-2 shadow-inner">
                     <textarea 
+                      placeholder="Ask Aura AI... (Shift+Enter for newline)"
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
                       onKeyDown={(e) => {
@@ -575,32 +524,290 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           handleSendMessage();
                         }
                       }}
-                      placeholder="Ask Aura anything..."
-                      className="w-full bg-[#3c3c3c] border border-white/5 rounded-xl py-3 pl-4 pr-12 text-[13px] focus:outline-none focus:border-blue-500/50 transition-all resize-none min-h-[80px] max-h-48 custom-scrollbar"
-                      rows={3}
+                      className="w-full bg-transparent border-none outline-none text-[13px] text-white p-2 min-h-[60px] max-h-[200px] resize-none"
                     />
-                    <div className="absolute right-2 bottom-2 flex gap-1">
-                      <button 
-                        onClick={() => fileInputRef.current?.click()}
-                        className="p-2 text-[#858585] hover:text-white hover:bg-white/5 rounded-lg transition-colors"
-                      >
-                        <Paperclip size={16} />
-                      </button>
+                    <div className="flex items-center justify-between mt-1 px-1">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-all" title="Attach Files">
+                          <Paperclip size={16} />
+                        </button>
+                        <button className="p-2 hover:bg-white/10 rounded-xl text-gray-500 hover:text-white transition-all" title="Take Screenshot">
+                          <ImageIcon size={16} />
+                        </button>
+                      </div>
                       <button 
                         onClick={handleSendMessage}
-                        disabled={isAiLoading || (!chatInput.trim() && attachedFiles.length === 0)}
-                        className="p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20"
+                        disabled={!chatInput.trim() || isAiLoading}
+                        className={cn(
+                          "p-2.5 rounded-xl transition-all shadow-lg",
+                          chatInput.trim() && !isAiLoading ? "bg-blue-600 text-white hover:bg-blue-500 scale-105" : "bg-gray-700 text-gray-500 opacity-50 cursor-not-allowed"
+                        )}
                       >
-                        <Send size={16} />
+                        <Send size={18} />
                       </button>
                     </div>
-                    <input 
-                      type="file" 
-                      ref={fileInputRef} 
-                      onChange={handleFileUpload} 
-                      multiple 
-                      className="hidden" 
+                    
+                    {/* Attachments Preview */}
+                    {attachedFiles.length > 0 && (
+                      <div className="flex flex-wrap gap-2 p-2 border-t border-white/5 mt-2">
+                        {attachedFiles.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-blue-600/20 border border-blue-500/30 px-2 py-1 rounded-lg">
+                            <span className="text-[10px] text-blue-300 truncate max-w-[80px]">{f.name}</span>
+                            <X size={10} className="hover:text-white cursor-pointer" onClick={() => removeAttachment(i)} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between px-1">
+                    <p className="text-[10px] text-gray-600 italic">Powered by {aiProvider === 'gemini' ? selectedModel : openRouterModel}</p>
+                    {context7Mode && <div className="text-[10px] text-purple-400 font-bold flex items-center gap-1 animate-pulse"><Cpu size={10} /> Context7 ON</div>}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+
+            {/* GITHUB TAB */}
+            {sidebarTab === 'github' && (
+              <motion.div 
+                key="github"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="flex flex-col p-4 gap-4"
+              >
+                {!githubToken ? (
+                  <div className="flex flex-col items-center justify-center py-10 text-center space-y-4">
+                    <Github size={48} className="opacity-20" />
+                    <div className="space-y-1">
+                      <p className="text-[13px] font-bold text-white">GitHub not connected</p>
+                      <p className="text-[11px] text-gray-500">Enter your Personal Access Token in Settings to manage repositories.</p>
+                    </div>
+                    <button 
+                      onClick={() => setSidebarTab('settings')}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-[12px] font-bold transition-all"
+                    >
+                      Configure in Settings
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <ConnectionStatus 
+                      status={testingStatus.github || 'idle'} 
+                      error={testError.github}
+                      onTest={testGithubConnection}
+                      label="Refresh Connection"
                     />
+
+                    {githubUser && (
+                      <div className="p-3 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-3">
+                        <img 
+                          src={githubUser.avatar_url} 
+                          alt={githubUser.login} 
+                          className="w-10 h-10 rounded-full border border-emerald-500/50"
+                        />
+                        <div className="flex-1 overflow-hidden">
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-[12px] font-bold text-white truncate">{githubUser.name || githubUser.login}</h4>
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          </div>
+                          <p className="text-[10px] text-gray-500 truncate leading-tight">@{githubUser.login}</p>
+                        </div>
+                        <a 
+                          href={githubUser.html_url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-all"
+                          title="View on GitHub"
+                        >
+                          <ExternalLink size={14} />
+                        </a>
+                      </div>
+                    )}
+                    
+                    <div className="relative group">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#858585] group-focus-within:text-blue-500 transition-colors" size={14} />
+                      <input 
+                        type="text" 
+                        placeholder="Search your repositories..."
+                        value={repoSearchInput}
+                        onChange={e => setRepoSearchInput(e.target.value)}
+                        className="w-full bg-[#3c3c3c] border border-white/5 rounded-md py-1.5 pl-9 pr-3 text-[13px] focus:outline-none focus:border-blue-500/50 transition-all font-medium"
+                      />
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar min-h-0">
+                      {isFetchingRepos ? (
+                        <div className="flex flex-col items-center justify-center py-20 opacity-50 animate-pulse">
+                          <RefreshCw size={24} className="animate-spin mb-2" />
+                          <span className="text-[11px]">Fetching repositories...</span>
+                        </div>
+                      ) : githubRepos.length === 0 ? (
+                        <div className="text-center py-10 opacity-30 italic text-[11px]">No repositories found</div>
+                      ) : (
+                        githubRepos.filter(r => r.name.toLowerCase().includes(repoSearchInput.toLowerCase())).map(repo => (
+                          <div 
+                            key={repo.id}
+                            className="p-3 rounded-xl hover:bg-white/5 border border-transparent hover:border-white/5 cursor-pointer group transition-all"
+                            onClick={() => handleCloneRepo(repo)}
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[13px] font-bold text-gray-200 group-hover:text-white truncate">{repo.name}</span>
+                              <span className="text-[9px] px-1.5 py-0.5 bg-white/5 rounded text-gray-500 uppercase">{repo.private ? 'Private' : 'Public'}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-500 truncate mb-2">{repo.description || 'No description'}</p>
+                            <div className="flex items-center gap-3 text-[10px] text-gray-600">
+                              <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-blue-500" /> {repo.language || 'Plain'}</div>
+                              <div className="flex items-center gap-1">⭐ {repo.stargazers_count}</div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
+
+            {/* BROWSER TAB */}
+            {sidebarTab === 'browser' && (
+              <motion.div 
+                key="browser"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col p-4 gap-4"
+              >
+                <div className="space-y-4">
+                  <div className="p-4 bg-blue-600/10 border border-blue-500/20 rounded-2xl space-y-2">
+                    <h4 className="text-[12px] font-bold text-blue-400 flex items-center gap-2 italic">
+                      <Monitor size={14} /> Internal Preview Mode
+                    </h4>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Aura's internal browser allows you to preview your HTML/JS applications side-by-side with the code.
+                    </p>
+                    <button 
+                      onClick={() => setShowBrowser(true)}
+                      className="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-xl shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Layout size={14} /> Open Preview Panel
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase px-2">Global URL Navigation</label>
+                    <div className="relative group">
+                      <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 group-focus-within:text-blue-500" size={14} />
+                      <input 
+                        type="text" 
+                        placeholder="https://google.com"
+                        value={browserUrl}
+                        onChange={e => setBrowserUrl(e.target.value)}
+                        className="w-full bg-[#3c3c3c] border border-white/5 rounded-xl py-2 pl-9 pr-3 text-[12px] focus:outline-none focus:border-blue-500/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button onClick={() => setBrowserUrl('https://www.google.com/search?igu=1')} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-400">Google</button>
+                    <button onClick={() => setBrowserUrl('https://github.com')} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-400">GitHub</button>
+                    <button onClick={() => setBrowserUrl('https://stackblitz.com')} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-400">StackBlitz</button>
+                    <button onClick={() => setBrowserUrl('https://tailwindcss.com')} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-400">Tailwind Docs</button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* DATABASE TAB */}
+            {sidebarTab === 'database' && (
+              <motion.div 
+                key="database"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="flex flex-col p-4 gap-6 overflow-y-auto custom-scrollbar"
+              >
+                {/* Supabase Status Card */}
+                <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-500 font-bold italic">S</div>
+                      <div>
+                        <h4 className="text-[12px] font-extrabold text-white tracking-tight">Supabase Cloud</h4>
+                        <p className="text-[9px] text-gray-500 uppercase tracking-widest leading-none mt-0.5">Data Persistence</p>
+                      </div>
+                    </div>
+                    <div className={cn(
+                      "px-2 py-0.5 rounded-full text-[9px] font-bold flex items-center gap-1",
+                      supabaseConnected ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                    )}>
+                      <div className={cn("w-1.5 h-1.5 rounded-full", supabaseConnected ? "bg-emerald-500 animate-pulse" : "bg-red-500")} />
+                      {supabaseConnected ? 'ONLINE' : 'OFFLINE'}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-2">
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-gray-500 uppercase px-1">Active Project URL</p>
+                      <div className="p-2 bg-black/20 rounded-lg border border-white/5 text-[10px] text-gray-400 font-mono truncate">
+                        {supabaseUrl || 'https://ngbzuagtzlepqutnkfeo...'}
+                      </div>
+                    </div>
+
+                    <ConnectionStatus 
+                      status={testingStatus.supabase || 'idle'} 
+                      error={testError.supabase}
+                      onTest={testSupabase}
+                    />
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={handleCloudSave} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-300 flex items-center justify-center gap-1.5">
+                        <CloudUpload size={12} className="text-emerald-400" /> Save
+                      </button>
+                      <button onClick={handleCloudLoad} className="p-2 bg-white/5 rounded-lg text-[10px] hover:bg-white/10 text-gray-300 flex items-center justify-center gap-1.5">
+                        <CloudDownload size={12} className="text-blue-400" /> Load
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* MCP Database Tools */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-1">
+                    <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#adbac7] flex items-center gap-2">
+                      <Database size={14} className="text-orange-500" /> Database Tools
+                    </h3>
+                    <span className="text-[10px] text-gray-600 font-mono">MCP Protocol</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    {mcpServers.some(s => s.name.toLowerCase().includes('sql') || s.name.toLowerCase().includes('db') || s.name.toLowerCase().includes('postgres')) ? (
+                      mcpServers.filter(s => s.name.toLowerCase().includes('sql') || s.name.toLowerCase().includes('db') || s.name.toLowerCase().includes('postgres')).map(s => (
+                        <div key={s.name} className="p-3 bg-white/[0.02] border border-white/5 rounded-xl space-y-3 hover:bg-white/[0.04] transition-colors group">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[12px] font-bold text-orange-400 group-hover:text-orange-300 transition-colors">{s.name}</span>
+                            <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          </div>
+                          <div className="space-y-1.5">
+                            {s.tools.map((t: any) => (
+                              <button 
+                                key={t.name}
+                                className="w-full text-left px-2 py-1.5 bg-black/20 hover:bg-black/40 rounded text-[11px] text-gray-400 hover:text-white transition-all flex items-center justify-between italic"
+                              >
+                                <span className="truncate max-w-[150px]">{t.name}</span>
+                                <Plus size={10} className="opacity-0 group-hover:opacity-50" />
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center border-2 border-dashed border-white/5 rounded-2xl opacity-30">
+                        <Database size={32} className="mx-auto mb-2 opacity-50" />
+                        <p className="text-[10px] italic">No active Database servers found. Connect SQLite or Postgres via Settings.</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -614,27 +821,236 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
-                className="p-6 space-y-8 custom-scrollbar"
+                className="p-6 space-y-8 custom-scrollbar h-full overflow-y-auto"
               >
+                {/* Visual Section */}
                 <section className="space-y-4">
-                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-blue-500">Appearance</h3>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-3 bg-[#333333]/50 rounded-xl border border-white/5">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-blue-500 flex items-center gap-2">
+                    <Layout size={14} /> Appearance & Layout
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div className="flex items-center justify-between p-3 bg-[#333333]/50 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                       <div className="space-y-0.5">
-                        <p className="text-[13px] font-medium text-white">Layout Presets</p>
-                        <p className="text-[11px] text-[#858585]">Quick switch layout modes</p>
+                        <p className="text-[12px] font-medium text-white italic">Layout Presets</p>
+                        <p className="text-[10px] text-gray-500">Quick toggle between modes</p>
                       </div>
-                      <div className="flex gap-1">
-                        <button onClick={() => relayout('default')} className="px-2 py-1 bg-[#3c3c3c] rounded text-[10px] hover:bg-[#454545] transition-colors">Default</button>
-                        <button onClick={() => relayout('modern')} className="px-2 py-1 bg-[#3c3c3c] rounded text-[10px] hover:bg-[#454545] transition-colors">Modern</button>
-                        <button onClick={() => relayout('zen')} className="px-2 py-1 bg-[#3c3c3c] rounded text-[10px] hover:bg-[#454545] transition-colors">Zen</button>
+                      <div className="flex gap-1.5">
+                        <button onClick={() => relayout('default')} className="px-2 py-1 bg-[#3c3c3c] rounded-lg text-[9px] hover:bg-blue-600 transition-colors">Classic</button>
+                        <button onClick={() => relayout('modern')} className="px-2 py-1 bg-[#3c3c3c] rounded-lg text-[9px] hover:bg-blue-600 transition-colors">Modern</button>
+                        <button onClick={() => relayout('zen')} className="px-2 py-1 bg-[#3c3c3c] rounded-lg text-[9px] hover:bg-blue-600 transition-colors">Zen</button>
                       </div>
                     </div>
                   </div>
                 </section>
-                
-                {/* Sisanya biarkan diringkas, seperti AI Config, Supabase, MCP yg ada di App.tsx */}
-                
+
+                {/* AI Configuration Section */}
+                <section className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-purple-500 flex items-center gap-2">
+                    <Sparkles size={14} /> AI Intelligence Center
+                  </h3>
+                  
+                  <div className="space-y-4 bg-black/20 p-4 rounded-2xl border border-white/5">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Provider & Model</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <select 
+                          value={aiProvider}
+                          onChange={(e: any) => setAiProvider(e.target.value)}
+                          className="bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none text-white focus:border-purple-500/50"
+                        >
+                          <option value="gemini">Google Gemini</option>
+                          <option value="openrouter">OpenRouter</option>
+                          <option value="bytez">Bytez AI</option>
+                          <option value="sumopod">SumoPod</option>
+                        </select>
+                        <select 
+                          value={aiProvider === 'gemini' ? selectedModel : aiProvider === 'openrouter' ? openRouterModel : aiProvider === 'bytez' ? bytezModel : sumopodModel}
+                          onChange={(e: any) => {
+                            if (aiProvider === 'gemini') setSelectedModel(e.target.value);
+                            else if (aiProvider === 'openrouter') setOpenRouterModel(e.target.value);
+                            else if (aiProvider === 'bytez') setBytezModel(e.target.value);
+                            else setSumopodModel(e.target.value);
+                          }}
+                          className="bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none text-white focus:border-purple-500/50"
+                        >
+                          {aiProvider === 'gemini' && GEMINI_MODELS.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                          {aiProvider === 'openrouter' && dynamicFreeModels.map((m: any) => (
+                            <option key={m.id} value={m.id}>{m.name.replace('Free:', '')}</option>
+                          ))}
+                          {aiProvider === 'bytez' && BYTEZ_MODELS.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                          {aiProvider === 'sumopod' && SUMOPOD_MODELS.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <ConnectionStatus 
+                        status={testingStatus[aiProvider] || 'idle'} 
+                        error={testError[aiProvider]} 
+                        onTest={() => testAiConnection(aiProvider)} 
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">API Key Authorization</label>
+                      <input 
+                        type="password" 
+                        placeholder={aiProvider === 'gemini' ? "Gemini API Key..." : aiProvider === 'openrouter' ? "OpenRouter Token..." : aiProvider === 'bytez' ? "Bytez Key..." : "SumoPod Key..."}
+                        value={aiProvider === 'gemini' ? geminiApiKey : aiProvider === 'openrouter' ? openRouterApiKey : aiProvider === 'bytez' ? bytezApiKey : sumopodApiKey}
+                        onChange={(e) => {
+                          if (aiProvider === 'gemini') setGeminiApiKey(e.target.value);
+                          else if (aiProvider === 'openrouter') setOpenRouterApiKey(e.target.value);
+                          else if (aiProvider === 'bytez') setBytezApiKey(e.target.value);
+                          else setSumopodApiKey(e.target.value);
+                        }}
+                        className="w-full bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none text-white focus:border-purple-500/50"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div 
+                      onClick={() => setContext7Mode(!context7Mode)}
+                      className={cn(
+                        "flex items-center justify-between p-3 rounded-2xl border transition-all cursor-pointer group",
+                        context7Mode ? "bg-purple-600/10 border-purple-500/30" : "bg-[#333333]/30 border-white/5 hover:border-white/10"
+                      )}
+                    >
+                      <div className="space-y-0.5">
+                        <p className={cn("text-[12px] font-bold flex items-center gap-1.5", context7Mode ? "text-purple-400" : "text-gray-300")}>
+                          <Cpu size={14} /> Context7 Mode
+                        </p>
+                        <p className="text-[10px] text-gray-500">Inject all project files into AI context</p>
+                      </div>
+                      <div className={cn("w-8 h-4 rounded-full relative transition-colors", context7Mode ? "bg-purple-600" : "bg-gray-700")}>
+                        <div className={cn("absolute top-0.5 w-3 h-3 bg-white rounded-full transition-all", context7Mode ? "left-4.5" : "left-0.5")} />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* Integrations Section */}
+                <section className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#adbac7] flex items-center gap-2 italic">
+                    <Github size={14} /> Service Integrations
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {/* GitHub Config */}
+                    <div className="p-4 bg-black/20 rounded-2xl border border-white/5 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Github size={16} className="text-[#adbac7]" />
+                        <span className="text-[12px] font-bold">GitHub Personal Access Token</span>
+                      </div>
+                      <input 
+                        type="password" 
+                        placeholder="ghp_xxxxxxxxxxxx"
+                        value={githubToken}
+                        onChange={(e) => setGithubToken(e.target.value)}
+                        className="w-full bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-blue-500/50"
+                      />
+                      <ConnectionStatus 
+                        status={testingStatus.github || 'idle'} 
+                        error={testError.github}
+                        onTest={testGithubConnection}
+                        label="Refresh Connectivity"
+                      />
+                    </div>
+
+                    {/* Supabase Config */}
+                    <div className="p-4 bg-black/20 rounded-2xl border border-white/5 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="w-4 h-4 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-500 text-[10px] font-bold italic">S</div>
+                        <span className="text-[12px] font-bold">Supabase Cloud Sync</span>
+                      </div>
+                      <div className="space-y-2">
+                        <input 
+                          type="text" 
+                          placeholder="Supabase Project URL..."
+                          value={supabaseUrl}
+                          onChange={(e) => setSupabaseUrl(e.target.value)}
+                          className="w-full bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[11px] outline-none"
+                        />
+                        <input 
+                          type="password" 
+                          placeholder="Anon / Service Role Key..."
+                          value={supabaseAnonKey}
+                          onChange={(e) => setSupabaseAnonKey(e.target.value)}
+                          className="w-full bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[11px] outline-none"
+                        />
+                      </div>
+                      <ConnectionStatus 
+                        status={testingStatus.supabase || 'idle'} 
+                        error={testError.supabase}
+                        onTest={testSupabase}
+                        label="Test Database Connection"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* MCP PROCOL SECTION */}
+                <section className="space-y-4">
+                  <h3 className="text-[11px] font-bold uppercase tracking-widest text-orange-500 flex items-center gap-2">
+                    <ExternalLink size={14} /> MCP Server Protocol
+                  </h3>
+                  
+                  <div className="bg-orange-500/5 border border-orange-500/20 p-4 rounded-2xl space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Load MCP Template</label>
+                      <select 
+                        value={selectedMcpTemplateIdx === 'custom' ? 'custom' : selectedMcpTemplateIdx}
+                        onChange={(e: any) => setSelectedMcpTemplateIdx(e.target.value === 'custom' ? 'custom' : parseInt(e.target.value))}
+                        className="w-full bg-[#3c3c3c] border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none"
+                      >
+                        {MCP_TEMPLATES.map((t, i) => <option key={i} value={i}>{t.label}</option>)}
+                        <option value="custom">Custom Implementation</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-gray-500 uppercase">Server Host / Endpoint</label>
+                      <input 
+                        type="text" 
+                        value={newMcpUrl}
+                        onChange={(e) => setNewMcpUrl(e.target.value)}
+                        className="w-full bg-[#3c3c3c] border border-white/10 rounded-xl px-3 py-2 text-[11px] outline-none font-mono"
+                        placeholder="https://mcp-server.example.com/sse"
+                      />
+                    </div>
+
+                    <button 
+                      className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white text-[11px] font-bold rounded-xl shadow-lg shadow-orange-500/10 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Plus size={14} /> Register MCP Server
+                    </button>
+                    
+                    <div className="pt-2 border-t border-white/5 space-y-2">
+                      <p className="text-[10px] text-gray-500 italic">Connected Servers:</p>
+                      {mcpServers.length === 0 ? (
+                        <p className="text-[10px] text-gray-700 italic text-center">No MCP servers registered</p>
+                      ) : (
+                        mcpServers.map((s, i) => (
+                          <div key={i} className="flex items-center justify-between p-2 bg-white/5 rounded-lg border border-white/5">
+                            <span className="text-[11px] font-bold text-orange-400">{s.name}</span>
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                              <button onClick={() => setShowMcpLogsFor(s.name)} className="text-[10px] hover:text-white transition-colors">Logs</button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </section>
+
+                <div className="py-10 text-center opacity-30">
+                  <AuraLogo size={40} className="mx-auto mb-2" />
+                  <p className="text-[10px] font-bold uppercase tracking-widest italic">Aura AI IDE — v4.1.0 Premium</p>
+                </div>
               </motion.div>
             )}
 
@@ -644,3 +1060,4 @@ export const Sidebar: React.FC<SidebarProps> = ({
     </>
   );
 };
+

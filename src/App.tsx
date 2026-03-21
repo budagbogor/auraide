@@ -61,6 +61,7 @@ import { EditorArea } from '@/components/layout/EditorArea';
 import { BottomPanel } from '@/components/layout/BottomPanel';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { AuraLogo } from '@/components/layout/AuraLogo';
+import { GuideModal } from '@/components/features/GuideModal';
 import { twMerge } from 'tailwind-merge';
 import { 
   AI_PROVIDERS, 
@@ -133,316 +134,9 @@ interface CodeProblem {
 // McpServer interface and other types are inherited or imported as needed
 
 
-const GuideModal = ({ onClose }: { onClose: () => void }) => {
-  const [activeSection, setActiveSection] = useState('intro');
+// Inline GuideModal removed
 
-  const sections = [
-    { id: 'intro', icon: BookOpen, title: 'Pengenalan', desc: 'Selamat datang di Aura IDE' },
-    { id: 'features', icon: Sparkles, title: 'Keunggulan Fitur', desc: 'Apa yang membuat Aura berbeda?' },
-    { id: 'roadmap', icon: Play, title: 'Roadmap & Desktop', desc: 'Build ke APK & EXE' },
-    { id: 'files', icon: FolderTree, title: 'Manajemen File', desc: 'Navigasi & edit kode' },
-    { id: 'ai', icon: Sparkles, title: 'Aura AI', desc: 'Asisten coding pintar' },
-    { id: 'shortcuts', icon: Keyboard, title: 'Shortcut & Perintah', desc: 'Kerja lebih cepat' },
-    { id: 'github', icon: Github, title: 'Integrasi GitHub', desc: 'Version control' },
-    { id: 'settings', icon: Settings, title: 'Pengaturan', desc: 'Kustomisasi IDE' },
-  ];
 
-  const renderContent = () => {
-    switch (activeSection) {
-      case 'intro':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <BookOpen className="text-blue-400" /> Pengenalan Aura IDE
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Aura IDE adalah lingkungan pengembangan terpadu (IDE) berbasis web yang dirancang untuk kecepatan, estetika, dan integrasi AI yang mendalam.
-            </p>
-            <div className="bg-white/5 p-4 rounded-lg border border-white/10 mt-4">
-              <h4 className="font-semibold text-white mb-2">Alur Kerja (Workflow) Ideal:</h4>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-gray-300">
-                <li>Buka <strong>Pengaturan</strong> untuk memasukkan API Key AI Anda.</li>
-                <li>Gunakan <strong>Explorer</strong> untuk membuat struktur file proyek.</li>
-                <li>Buka <strong>Aura AI Chat</strong> untuk meminta bantuan menulis kerangka kode.</li>
-                <li>Gunakan <strong>Command Palette</strong> untuk navigasi cepat antar fitur.</li>
-                <li>Simpan dan sinkronkan ke <strong>GitHub</strong>.</li>
-                <li>Gunakan <strong>Official Release</strong> (via Git Tags) untuk publikasi otomatis ke APK/EXE.</li>
-              </ol>
-            </div>
-          </div>
-        );
-      case 'features':
-        return (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Sparkles className="text-yellow-400" /> Keunggulan Aura IDE
-            </h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400"><Cpu size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Multi-Provider AI</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Dukungan penuh untuk Gemini, OpenRouter (Claude, GPT-4), Bytez, dan SumoPod AI.</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-purple-500/20 flex items-center justify-center text-purple-400"><Layout size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Premium UI & UX</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Desain modern bergaya AntiGravity dengan animasi halus dan efek glassmorphism yang premium.</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400"><FolderTree size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Manajemen File Kuat</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Buka folder lokal, clone repo GitHub, dan kelola file dengan performa tinggi seperti aplikasi desktop.</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400"><Globe size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Ekosistem Terintegrasi</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Integrasi langsung dengan GitHub, Supabase, dan protokol MCP untuk konteks pengerjaan yang lebih dalam.</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-blue-400/20 flex items-center justify-center text-blue-300"><Maximize2 size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Mode Tampilan Fleksibel</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Tersedia mode Klasik, Modern (sidebar kanan), dan Zen Mode untuk fokus pengembangan yang maksimal.</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-xl border border-white/10 space-y-2">
-                <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center text-red-400"><Sparkles size={20} /></div>
-                <h4 className="font-bold text-white text-[14px]">Aura Intelligence</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">Asisten AI yang memahami konteks seluruh file proyek Anda (Context7 Mode) untuk membantu debugging & optimasi.</p>
-              </div>
-              <div className="bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4 rounded-xl border border-blue-500/20 space-y-2 col-span-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400"><RefreshCw size={20} /></div>
-                  <h4 className="font-bold text-white text-[14px]">Automated Release Pipeline</h4>
-                </div>
-                <p className="text-[11px] text-gray-300 leading-relaxed">Satu-satunya IDE yang otomatis membangun APK & EXE dan mempublikasikannya ke GitHub Releases hanya dengan satu tag Git.</p>
-              </div>
-            </div>
-          </div>
-        );
-      case 'files':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <FolderTree className="text-blue-400" /> Manajemen File
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Panel Explorer (ikon dokumen di kiri) adalah pusat pengelolaan proyek Anda.
-            </p>
-            <ul className="space-y-3 text-sm text-gray-300 mt-4">
-              <li className="flex gap-3"><div className="p-1 bg-white/10 rounded h-fit"><FileCode size={16}/></div> <div><strong>Membuat File:</strong> Klik ikon + di panel Explorer. Beri nama beserta ekstensinya (misal: <code>app.tsx</code>).</div></li>
-              <li className="flex gap-3"><div className="p-1 bg-white/10 rounded h-fit"><Search size={16}/></div> <div><strong>Pencarian Global:</strong> Gunakan tab Search untuk mencari teks di seluruh file proyek Anda.</div></li>
-              <li className="flex gap-3"><div className="p-1 bg-white/10 rounded h-fit"><Download size={16}/></div> <div><strong>Export Proyek:</strong> Anda dapat mengunduh seluruh proyek sebagai file .zip melalui Command Palette.</div></li>
-            </ul>
-          </div>
-        );
-      case 'ai':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Sparkles className="text-blue-400" /> Aura AI Assistant
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Aura AI terintegrasi langsung ke dalam editor untuk membantu Anda menulis, mendebug, dan memahami kode.
-            </p>
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
-                <h4 className="font-semibold text-white text-sm mb-1">Pilihan Model</h4>
-                <p className="text-xs text-gray-400">Mendukung Google Gemini, OpenRouter, Bytez, dan SumoPod (termasuk Gemini 2.0 Flash Lite & Claude 4.5).</p>
-              </div>
-              <div className="bg-white/5 p-3 rounded-lg border border-white/10">
-                <h4 className="font-semibold text-white text-sm mb-1">Super Skills</h4>
-                <p className="text-xs text-gray-400">Ketik <code>/</code> di chat AI untuk menggunakan perintah cepat seperti /explain, /refactor, atau /fix.</p>
-              </div>
-            </div>
-          </div>
-        );
-      case 'shortcuts':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Keyboard className="text-blue-400" /> Shortcut & Perintah
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Tingkatkan produktivitas Anda dengan pintasan keyboard (shortcuts) bawaan.
-            </p>
-            <div className="space-y-2 mt-4">
-              {[
-                { key: 'Ctrl + Shift + P', desc: 'Buka Command Palette (Pusat Perintah)' },
-                { key: 'Ctrl + P', desc: 'Pencarian File Cepat' },
-                { key: 'Ctrl + S', desc: 'Simpan File Aktif' },
-                { key: 'Ctrl + B', desc: 'Tutup/Buka Sidebar' },
-                { key: 'F11', desc: 'Toggle Zen Mode (Fokus Penuh)' },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center justify-between bg-white/5 p-2 rounded border border-white/5">
-                  <span className="text-sm text-gray-300">{s.desc}</span>
-                  <kbd className="bg-black/50 text-blue-300 px-2 py-1 rounded text-xs font-mono border border-white/10">{s.key}</kbd>
-                </div>
-              ))}
-            </div>
-            <div className="bg-blue-500/10 p-4 rounded-xl border border-blue-500/20 mt-4">
-              <h4 className="font-bold text-white text-sm mb-2 flex items-center gap-2">
-                <Terminal size={14} className="text-blue-400" /> Real Terminal (Windows Installer)
-              </h4>
-              <p className="text-[11px] text-gray-300 leading-relaxed">
-                Khusus versi <strong>Windows Installer (.exe)</strong>, terminal Aura kini mendukung perintah asli sistem seperti <code>npm install</code>, <code>git push</code>, dan lainnya.
-                Cukup ketik perintah Anda dan tekan Enter untuk eksekusi langsung di host OS.
-              </p>
-            </div>
-          </div>
-        );
-      case 'github':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Github className="text-blue-400" /> Integrasi GitHub
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Kelola version control langsung dari IDE tanpa perlu membuka terminal.
-            </p>
-            <ul className="space-y-3 text-sm text-gray-300 mt-4">
-              <li><strong>1. Setup Token:</strong> Masukkan GitHub Personal Access Token di Pengaturan.</li>
-              <li><strong>2. Hubungkan Repo:</strong> Masukkan URL atau cari repository Anda di tab GitHub (mendukung pencarian & scroll).</li>
-              <li><strong>3. Commit & Push:</strong> Sinkronkan kode Anda ke cloud dengan pesan commit yang jelas.</li>
-              <li><strong>4. Release Otomatis:</strong> Push tag (cth: <code>v1.0.0</code>) untuk men-trigger pembuatan APK & EXE secara resmi.</li>
-            </ul>
-          </div>
-        );
-      case 'roadmap':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Play className="text-emerald-400" /> Roadmap & Desktop Build
-            </h3>
-            <p className="text-gray-300 leading-relaxed text-sm">
-              Ingin mengekspor proyek Anda menjadi aplikasi Windows (.exe) atau Android (.apk)? Gunakan roadmap berikut:
-            </p>
-            <div className="space-y-3 mt-4">
-              <div className="bg-gradient-to-br from-blue-600/20 to-purple-600/20 p-4 rounded-xl border border-blue-500/30">
-                <div className="flex items-center gap-2 mb-2">
-                  <Sparkles size={16} className="text-blue-400" />
-                  <strong className="text-white text-sm">Official Release (Otomatis & Profesional)</strong>
-                </div>
-                <p className="text-[11px] text-gray-300 mb-3 leading-relaxed">
-                  Ini adalah cara terbaik untuk mempublikasikan aplikasi Anda ke publik. Sistem akan otomatis membangun APK dan EXE, lalu membuat halaman "Release" di GitHub.
-                </p>
-                <ol className="list-decimal list-inside text-xs text-gray-400 space-y-2 mb-3">
-                  <li>Push semua perubahan Anda ke branch <code>main</code>.</li>
-                  <li>Buat sebuah <strong>Tag Versi</strong> baru (misal: <code>v1.0.0</code>).</li>
-                  <li>Push tag tersebut ke GitHub (<code>git push origin v1.0.0</code>).</li>
-                  <li>GitHub Actions akan otomatis membangun versi Windows & Android.</li>
-                  <li>Cek tab <strong>Releases</strong> di halaman depan repositori GitHub Anda.</li>
-                </ol>
-                <div className="flex items-center gap-2 text-[10px] text-blue-400 bg-blue-500/10 p-2 rounded-lg">
-                  <Info size={12} />
-                  <span>File APK & Installer Windows akan langsung tersedia di sana selamanya!</span>
-                </div>
-              </div>
-              
-              <div className="bg-white/5 p-3 rounded border border-white/10">
-                <strong className="text-blue-400 block mb-1">Desktop EXE (Manual Artifact)</strong>
-                <ol className="list-decimal list-inside text-xs text-gray-400 space-y-1">
-                  <li>Push kode ke GitHub, buka tab <strong>Actions</strong>.</li>
-                  <li>Pilih <strong>"Build Windows EXE (Tauri)"</strong>.</li>
-                  <li>Download dari bagian <strong>Artifacts</strong>.</li>
-                </ol>
-              </div>
-
-              <div className="bg-white/5 p-3 rounded border border-white/10">
-                <strong className="text-emerald-400 block mb-1">Android APK (Manual Artifact)</strong>
-                <ol className="list-decimal list-inside text-xs text-gray-400 space-y-1">
-                  <li>Push kode ke GitHub, buka tab <strong>Actions</strong>.</li>
-                  <li>Pilih <strong>"Build Android APK"</strong>.</li>
-                  <li>Download dari bagian <strong>Artifacts</strong>.</li>
-                </ol>
-              </div>
-              <div className="bg-white/5 p-3 rounded border border-white/10 opacity-60">
-                <strong className="text-gray-400 block mb-1">Android APK (Manual - Lokal)</strong>
-                <p className="text-xs text-gray-400">Gunakan <code>npx cap open android</code> jika Anda sudah memiliki Android Studio & SDK terpasang.</p>
-              </div>
-            </div>
-          </div>
-        );
-      case 'settings':
-        return (
-          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4">
-            <h3 className="text-xl font-bold text-white flex items-center gap-2">
-              <Settings className="text-blue-400" /> Pengaturan IDE
-            </h3>
-            <p className="text-gray-300 leading-relaxed">
-              Sesuaikan Aura IDE agar sesuai dengan gaya kerja Anda.
-            </p>
-            <div className="space-y-3 text-sm text-gray-300 mt-4">
-              <div className="bg-white/5 p-3 rounded border border-white/10">
-                <strong className="text-white block mb-1">Layout Mode</strong>
-                Pilih antara mode <strong>Klasik</strong> (Sidebar di kiri) atau <strong>Modern</strong> (Sidebar di kanan).
-              </div>
-              <div className="bg-white/5 p-3 rounded border border-white/10">
-                <strong className="text-white block mb-1">API Keys</strong>
-                Tempat menyimpan kunci API untuk Gemini, OpenRouter, dan GitHub secara aman di penyimpanan lokal browser Anda.
-              </div>
-            </div>
-          </div>
-        );
-      default:
-        return null;
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 10 }}
-        className="bg-[#1e1e1e] w-full max-w-4xl h-[600px] rounded-2xl border border-white/10 shadow-2xl flex overflow-hidden flex-col"
-      >
-        {/* Header */}
-        <div className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-white/5">
-          <div className="flex items-center gap-3">
-            <div className="p-1.5 bg-blue-500/20 rounded-lg">
-              <BookOpen size={20} className="text-blue-400" />
-            </div>
-            <h2 className="text-lg font-semibold text-white">Panduan Workflow Aura IDE</h2>
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* Sidebar */}
-          <div className="w-64 border-r border-white/10 bg-black/20 p-4 overflow-y-auto">
-            <div className="space-y-1">
-              {sections.map((sec) => (
-                <button
-                  key={sec.id}
-                  onClick={() => setActiveSection(sec.id)}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-200",
-                    activeSection === sec.id 
-                      ? "bg-blue-600/20 text-blue-400 border border-blue-500/20 shadow-lg shadow-blue-500/10" 
-                      : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
-                  )}
-                >
-                  <sec.icon size={18} className={activeSection === sec.id ? "text-blue-400" : "text-gray-500"} />
-                  <div>
-                    <div className="font-medium text-sm">{sec.title}</div>
-                    <div className="text-[10px] opacity-60 mt-0.5">{sec.desc}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="flex-1 p-8 overflow-y-auto bg-[#1e1e1e]">
-            {renderContent()}
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
 
 // --- Desktop Title Bar (Premium Trae/VS Code Style) ---
 const TitleBar = ({ projectName }: { projectName: string }) => {
@@ -518,7 +212,6 @@ export default function App() {
   const [projectName, setProjectName] = useState('AURA-PROJECT');
   const activeFile = files.find(f => f.id === activeFileId) || (files.length > 0 ? files[0] : null);
 
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'P') {
@@ -541,7 +234,7 @@ export default function App() {
 
   const [showBottomPanel, setShowBottomPanel] = useState(true);
   const [bottomTab, setBottomTab] = useState<'terminal' | 'problems' | 'output' | 'debug'>('terminal');
-  const [sidebarTab, setSidebarTab] = useState<'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser'>('files');
+  const [sidebarTab, setSidebarTab] = useState<'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser' | 'database'>('files');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Welcome to **Aura AI IDE**. I am your coding assistant. How can I help you today?' }
   ]);
@@ -585,6 +278,7 @@ export default function App() {
   };
   const [githubConnected, setGithubConnected] = useState(false);
   const [githubToken, setGithubToken] = useState(() => localStorage.getItem('aura_github_token') || '');
+  const [githubUser, setGithubUser] = useState<any | null>(null);
   const [githubRepos, setGithubRepos] = useState<any[]>([]);
   const [isFetchingRepos, setIsFetchingRepos] = useState(false);
 
@@ -648,6 +342,7 @@ export default function App() {
     }
   };
 
+
   const handleSaveFile = async () => {
     if (!activeFile) return;
     
@@ -682,7 +377,89 @@ export default function App() {
 
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('aura_supabase_url') || '');
   const [supabaseAnonKey, setSupabaseAnonKey] = useState(() => localStorage.getItem('aura_supabase_key') || '');
-  const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [supabaseConnected, setSupabaseConnected] = useState(() => localStorage.getItem('aura_supabase_connected') === 'true');
+  const [isSupabaseTesting, setIsSupabaseTesting] = useState(false);
+
+  const testSupabase = async () => {
+    const activeUrl = supabaseUrl || DEFAULT_SUPABASE_URL;
+    const activeKey = supabaseAnonKey || DEFAULT_SUPABASE_KEY;
+    
+    if (!activeUrl || !activeKey) return;
+    
+    setTestingStatus(prev => ({ ...prev, supabase: 'loading' }));
+    appendTerminalOutput(`[CLOUD] Mencoba menghubungkan ke Supabase: ${activeUrl}...`);
+    try {
+      const { testSupabaseConnection } = await import('./services/supabaseService');
+      const success = await testSupabaseConnection({ url: activeUrl, anonKey: activeKey });
+      if (success) {
+        setSupabaseConnected(true);
+        localStorage.setItem('aura_supabase_connected', 'true');
+        setTestingStatus(prev => ({ ...prev, supabase: 'success' }));
+        appendTerminalOutput('✓ Berhasil terhubung ke Supabase Cloud!');
+      }
+    } catch (err: any) {
+      setSupabaseConnected(false);
+      localStorage.setItem('aura_supabase_connected', 'false');
+      setTestingStatus(prev => ({ ...prev, supabase: 'error' }));
+      setTestError(prev => ({ ...prev, supabase: err.message }));
+      appendTerminalOutput(`✗ Gagal terhubung: ${err.message}`);
+    }
+  };
+
+  const testGithubConnection = async () => {
+    if (!githubToken) return;
+    setTestingStatus(prev => ({ ...prev, github: 'loading' }));
+    try {
+      const { fetchUserProfile } = await import('./services/githubService');
+      const profile = await fetchUserProfile(githubToken);
+      setGithubUser(profile);
+      setGithubConnected(true);
+      setTestingStatus(prev => ({ ...prev, github: 'success' }));
+      appendTerminalOutput(`[GITHUB] Koneksi berhasil! Terhubung sebagai @${profile.login}`);
+    } catch (err: any) {
+      setGithubConnected(false);
+      setTestingStatus(prev => ({ ...prev, github: 'error' }));
+      setTestError(prev => ({ ...prev, github: err.message }));
+      appendTerminalOutput(`[GITHUB ERROR] ${err.message}`);
+    }
+  };
+
+  const testAiConnection = async (provider: 'gemini' | 'openrouter' | 'bytez' | 'sumopod') => {
+    setTestingStatus(prev => ({ ...prev, [provider]: 'loading' }));
+    try {
+      if (provider === 'gemini') {
+        const apiKey = geminiApiKey || process.env.GEMINI_API_KEY || '';
+        if (!apiKey) throw new Error('API Key kosong');
+        const { getGeminiAI } = await import('./services/geminiService');
+        const ai = getGeminiAI(apiKey);
+        await ai.models.generateContent({
+          model: selectedModel,
+          contents: [{ role: 'user', parts: [{ text: 'ping' }] }]
+        });
+      } else if (provider === 'openrouter') {
+        const apiKey = openRouterApiKey || process.env.OPENROUTER_API_KEY || '';
+        if (!apiKey) throw new Error('API Key kosong');
+        const { generateOpenRouterContent } = await import('./services/openRouterService');
+        await generateOpenRouterContent(openRouterModel, 'ping', apiKey);
+      } else if (provider === 'bytez') {
+        const apiKey = bytezApiKey || '';
+        if (!apiKey) throw new Error('API Key kosong');
+        const { generateBytezContent } = await import('./services/bytezService');
+        await generateBytezContent(bytezModel, 'ping', apiKey, geminiApiKey);
+      } else if (provider === 'sumopod') {
+        const apiKey = sumopodApiKey || '';
+        if (!apiKey) throw new Error('API Key kosong');
+        const { generateSumopodContent } = await import('./services/sumopodService');
+        await generateSumopodContent(apiKey, sumopodModel, [{ role: 'user', content: 'ping' }]);
+      }
+      setTestingStatus(prev => ({ ...prev, [provider]: 'success' }));
+      appendTerminalOutput(`[AI] Koneksi ${provider.toUpperCase()} berhasil!`);
+    } catch (err: any) {
+      setTestingStatus(prev => ({ ...prev, [provider]: 'error' }));
+      setTestError(prev => ({ ...prev, [provider]: err.message }));
+      appendTerminalOutput(`[AI ERROR] ${provider.toUpperCase()}: ${err.message}`);
+    }
+  };
   const [mcpServers, setMcpServers] = useState<any[]>(() => {
     const saved = localStorage.getItem('aura_mcp_servers');
     if (saved) {
@@ -707,6 +484,8 @@ export default function App() {
   const [mcpTemplateData, setMcpTemplateData] = useState<Record<string, string>>({});
   const [showMcpLogsFor, setShowMcpLogsFor] = useState<string | null>(null);
   const [activeMcpLogs, setActiveMcpLogs] = useState<string[]>([]);
+  const [testingStatus, setTestingStatus] = useState<Record<string, 'idle' | 'loading' | 'success' | 'error'>>({});
+  const [testError, setTestError] = useState<Record<string, string>>({});
   const [editorFontSize, setEditorFontSize] = useState(14);
   const [aiProvider, setAiProvider] = useState<'gemini' | 'openrouter' | 'bytez' | 'sumopod'>(() => (localStorage.getItem('aiProvider') as any) || 'gemini');
   const [geminiApiKey, setGeminiApiKey] = useState(() => localStorage.getItem('aura_gemini_key') || process.env.GEMINI_API_KEY || '');
@@ -834,6 +613,31 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem('aura_github_token', githubToken);
+    if (githubToken) {
+      const loadProfile = async () => {
+        try {
+          const { fetchUserProfile, fetchUserRepos } = await import('./services/githubService');
+          const profile = await fetchUserProfile(githubToken);
+          setGithubUser(profile);
+          setGithubConnected(true);
+          
+          // Also fetch repos if they are empty
+          if (githubRepos.length === 0) {
+            const repos = await fetchUserRepos(githubToken);
+            setGithubRepos(repos);
+          }
+        } catch (err) {
+          console.error("Failed to load GitHub profile:", err);
+          setGithubConnected(false);
+          setGithubUser(null);
+        }
+      };
+      loadProfile();
+    } else {
+      setGithubConnected(false);
+      setGithubUser(null);
+      setGithubRepos([]);
+    }
   }, [githubToken]);
 
   useEffect(() => {
@@ -1451,9 +1255,10 @@ Integrations:
         )}
       >
       {/* Guide Modal */}
-      <AnimatePresence>
-        {showGuideModal && <GuideModal onClose={() => setShowGuideModal(false)} />}
-      </AnimatePresence>
+      <GuideModal 
+        isOpen={showGuideModal} 
+        onClose={() => setShowGuideModal(false)} 
+      />
 
       {/* Context Menu */}
       <AnimatePresence>
@@ -1673,6 +1478,7 @@ Integrations:
         handleFileUpload={handleFileUpload}
         fileInputRef={fileInputRef}
         chatEndRef={chatEndRef}
+        githubUser={githubUser}
         githubConnected={githubConnected}
         setGithubConnected={setGithubConnected}
         githubToken={githubToken}
@@ -1758,6 +1564,11 @@ Integrations:
         setShowMcpLogsFor={setShowMcpLogsFor}
         activeMcpLogs={activeMcpLogs}
         setActiveMcpLogs={setActiveMcpLogs}
+        testSupabase={testSupabase}
+        testingStatus={testingStatus}
+        testAiConnection={testAiConnection}
+        testGithubConnection={testGithubConnection}
+        testError={testError}
       />
 
       {/* Main Area */}
@@ -1846,86 +1657,6 @@ Integrations:
             browserSrcDoc={browserSrcDoc}
             setBrowserSrcDoc={setBrowserSrcDoc}
           />
-
-          {/* Internal Browser Container */}
-          {showBrowser && (
-            <div 
-              style={{ width: browserWidth }}
-              className="flex flex-col bg-[#f3f3f3] border-l border-white/10 relative"
-            >
-              {/* Resizer Handle (Vertical Split) */}
-              <div 
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  setIsResizingBrowser(true);
-                  document.body.style.cursor = 'col-resize';
-                }}
-                className="absolute top-0 bottom-0 left-[-3px] w-1.5 cursor-col-resize hover:bg-blue-500/30 transition-colors z-50"
-              />
-              {/* Browser Header/Address Bar */}
-              <div className="h-10 bg-[#e1e1e1] border-b border-[#ccc] flex items-center px-2 gap-2">
-                <div className="flex items-center gap-1">
-                  <button className="p-1.5 text-[#555] hover:bg-[#d0d0d0] rounded transition-colors"><ArrowLeft size={14} /></button>
-                  <button className="p-1.5 text-[#555] hover:bg-[#d0d0d0] rounded transition-colors"><ArrowRight size={14} /></button>
-                  <button 
-                    onClick={() => {
-                      const current = browserUrl;
-                      setBrowserUrl('');
-                      setTimeout(() => setBrowserUrl(current), 10);
-                    }}
-                    className="p-1.5 text-[#555] hover:bg-[#d0d0d0] rounded transition-colors"
-                  >
-                    <RotateCcw size={14} />
-                  </button>
-                </div>
-                <div className="flex-1 flex items-center bg-white border border-[#ccc] rounded px-2 py-1 gap-2">
-                  <Globe size={12} className="text-[#888]" />
-                  <input 
-                    type="text" 
-                    value={browserSrcDoc ? 'Project Preview (Internal)' : browserUrl}
-                    onChange={(e) => {
-                      if (!browserSrcDoc) setBrowserUrl(e.target.value);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        setBrowserSrcDoc(null);
-                      }
-                    }}
-                    className="flex-1 bg-transparent outline-none text-xs text-black"
-                    placeholder="Enter URL..."
-                  />
-                  {browserSrcDoc && (
-                    <button 
-                      onClick={() => setBrowserSrcDoc(null)}
-                      className="text-[10px] text-blue-600 hover:underline"
-                    >
-                      Clear Preview
-                    </button>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button className="p-1.5 text-[#555] hover:bg-[#d0d0d0] rounded transition-colors"><Maximize2 size={14} /></button>
-                  <button 
-                    onClick={() => setShowBrowser(false)}
-                    className="p-1.5 text-[#555] hover:bg-[#d0d0d0] rounded transition-colors"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-              
-              {/* Browser Content */}
-              <div className="flex-1 bg-white relative">
-                <iframe 
-                  src={browserSrcDoc ? undefined : browserUrl}
-                  srcDoc={browserSrcDoc || undefined}
-                  className="w-full h-full border-none"
-                  title="Main Internal Browser"
-                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-                />
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

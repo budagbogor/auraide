@@ -16,7 +16,7 @@ export default defineConfig(({mode}) => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
       },
     },
     build: {
@@ -26,13 +26,22 @@ export default defineConfig(({mode}) => {
             if (id.includes('monaco-editor')) {
               return 'monaco';
             }
+            if (id.includes('lucide-react')) {
+              return 'lucide';
+            }
+            if (id.includes('framer-motion')) {
+              return 'animations';
+            }
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-core';
+            }
             if (id.includes('node_modules')) {
               return 'vendor';
             }
           },
         },
       },
-      chunkSizeWarningLimit: 1000,
+      chunkSizeWarningLimit: 2000,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

@@ -46,6 +46,8 @@ export const BottomPanel: React.FC<BottomPanelProps> = ({
 }) => {
   const currentSession = terminalSessions.find(s => s.id === activeTerminalId) || terminalSessions[0];
 
+  if (zenMode) return null;
+
   const renderContent = () => {
     switch (bottomTab) {
       case 'terminal':

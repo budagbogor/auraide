@@ -13,6 +13,12 @@ export const getGitHubClient = (token?: string) => {
   return octokit;
 };
 
+export const fetchUserProfile = async (token: string) => {
+  const client = new Octokit({ auth: token });
+  const { data } = await client.rest.users.getAuthenticated();
+  return data;
+};
+
 export const fetchUserRepos = async (token: string) => {
   const client = new Octokit({ auth: token });
   const { data } = await client.rest.repos.listForAuthenticatedUser({
