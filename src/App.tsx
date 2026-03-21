@@ -157,6 +157,12 @@ interface ChatMessage {
   content: string;
 }
 
+interface TerminalSession {
+  id: string;
+  name: string;
+  output: string[];
+}
+
 interface CodeProblem {
   line: number;
   severity: 'error' | 'warning' | 'info';
@@ -583,13 +589,47 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
-  const [sidebarTab, setSidebarTab] = useState<'files' | 'search' | 'ai' | 'github' | 'settings' | 'browser'>('files');
+  const [sidebarTab, setSidebarTab] = useState<'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser'>('files');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Welcome to **Aura AI IDE**. I am your coding assistant. How can I help you today?' }
   ]);
   const [chatInput, setChatInput] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>(['Aura Terminal v1.0.0', 'Ready for input...']);
+  const [terminalSessions, setTerminalSessions] = useState<TerminalSession[]>([
+    { id: 'default', name: 'Terminal', output: ['Aura Terminal v4.0.0 (Cursor Core)', 'Ready for input...'] }
+  ]);
+  const [activeTerminalId, setActiveTerminalId] = useState('default');
+  
+  const currentSession = terminalSessions.find(s => s.id === activeTerminalId) || terminalSessions[0];
+
+  const appendTerminalOutput = (data: string, sessionId?: string) => {
+    const targetId = sessionId || activeTerminalId;
+    setTerminalSessions(prev => prev.map(s => 
+      s.id === targetId ? { ...s, output: [...s.output, data] } : s
+    ));
+  };
+
+  const addTerminalSession = () => {
+    const newId = `term-${Date.now()}`;
+    const newSession: TerminalSession = {
+      id: newId,
+      name: `Terminal ${terminalSessions.length + 1}`,
+      output: [`[AURA] New session started at ${new Date().toLocaleTimeString()}`]
+    };
+    setTerminalSessions(prev => [...prev, newSession]);
+    setActiveTerminalId(newId);
+  };
+
+  const closeTerminalSession = (id: string) => {
+    if (terminalSessions.length <= 1) return;
+    setTerminalSessions(prev => {
+      const filtered = prev.filter(s => s.id !== id);
+      if (activeTerminalId === id) {
+        setActiveTerminalId(filtered[0].id);
+      }
+      return filtered;
+    });
+  };
   const [githubConnected, setGithubConnected] = useState(false);
   const [githubToken, setGithubToken] = useState(() => localStorage.getItem('aura_github_token') || '');
   const [githubRepos, setGithubRepos] = useState<any[]>([]);
@@ -611,7 +651,7 @@ export default function App() {
     }
 
     setIsFetchingRepos(true);
-    setTerminalOutput(prev => [...prev, `[GITHUB] Cloning repository ${repo.full_name} to local disk... (This might take a moment)`]);
+    appendTerminalOutput(`[GITHUB] Cloning repository ${repo.full_name} to local disk... (This might take a moment)`);
     
     try {
       const { cloneRepository } = await import('./services/githubService');
@@ -644,12 +684,12 @@ export default function App() {
         setActiveFileId(clonedFiles[0].id);
         setProjectName(repo.name.toUpperCase());
         setSidebarTab('files');
-        setTerminalOutput(prev => [...prev, `[GITHUB] Successfully cloned and saved to local disk: ${repo.full_name}.`]);
+        appendTerminalOutput(`[GITHUB] Successfully cloned and saved to local disk: ${repo.full_name}.`);
       } else {
-        setTerminalOutput(prev => [...prev, `[GITHUB] Repository ${repo.full_name} is empty or no supported files found.`]);
+        appendTerminalOutput(`[GITHUB] Repository ${repo.full_name} is empty or no supported files found.`);
       }
     } catch (error) {
-      setTerminalOutput(prev => [...prev, `[GITHUB] Error cloning repository: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      appendTerminalOutput(`[GITHUB] Error cloning repository: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       setIsFetchingRepos(false);
     }
@@ -1329,55 +1369,47 @@ Integrations:
     setBottomTab('terminal');
     setShowBottomPanel(true);
 
-    setTerminalOutput(prev => [...prev, `aura-project $ ${val}`]);
+    const sessionId = activeTerminalId;
+    const appendOutput = (data: string) => {
+      appendTerminalOutput(data, sessionId);
+    };
+
+    appendOutput(`aura-project $ ${val}`);
 
     // If running in Tauri Desktop mode, try real execution
     if (isTauri && TauriCommand) {
       if (!nativeProjectPath) {
-        setTerminalOutput(prev => [...prev, 
-          '[AURA INFO] Folder proyek belum dibuka secara Native.',
-          'Klik tombol "Open Folder Proyek (Native - Support Terminal/NPM)" di toolbar Explorer.'
-        ]);
+        appendOutput('[AURA INFO] Folder proyek belum dibuka secara Native. Klik tombol "Open Folder Proyek (Native - Support Terminal/NPM)" di toolbar Explorer.');
         return;
       }
 
       try {
-        // Tauri v2 plugin-shell: Use Command.create with spawn()
-        // Output is captured by listening to child process events
         const child = await TauriCommand.create(
           'powershell',
           ['-NoProfile', '-NonInteractive', '-Command', val],
           { cwd: nativeProjectPath }
         ).spawn();
 
-        // Listen to stdout line by line
         child.stdout.on('data', (line: string) => {
-          if (line && line.trim()) {
-            setTerminalOutput(prev => [...prev, line]);
-          }
+          if (line && line.trim()) appendOutput(line);
         });
 
-        // Listen to stderr line by line
         child.stderr.on('data', (line: string) => {
-          if (line && line.trim()) {
-            setTerminalOutput(prev => [...prev, `[ERR] ${line}`]);
-          }
+          if (line && line.trim()) appendOutput(`[ERR] ${line}`);
         });
 
-        // Listen for process exit
         child.on('close', (data: { code: number | null }) => {
           const code = data?.code;
           if (code === 0) {
-            setTerminalOutput(prev => [...prev, `✓ Selesai (exit code: 0)`]);
+            appendOutput(`✓ Selesai (exit code: 0)`);
           } else if (code !== null) {
-            setTerminalOutput(prev => [...prev, `✗ Proses selesai dengan exit code: ${code}`]);
+            appendOutput(`✗ Proses selesai dengan exit code: ${code}`);
           }
         });
 
-        return; // Async streaming, do not fall to simulator
+        return; 
       } catch (err: any) {
         console.error('Tauri Shell Error:', err);
-        // Try fallback: use output() instead of spawn() for simpler commands
         try {
           const output = await TauriCommand.create(
             'powershell',
@@ -1386,54 +1418,54 @@ Integrations:
           ).execute();
           if (output.stdout) {
             output.stdout.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-              setTerminalOutput(prev => [...prev, line]);
+              appendOutput(line);
             });
           }
           if (output.stderr) {
             output.stderr.split('\n').filter((l: string) => l.trim()).forEach((line: string) => {
-              setTerminalOutput(prev => [...prev, `[ERR] ${line}`]);
+              appendOutput(`[ERR] ${line}`);
             });
           }
           return;
         } catch (err2: any) {
-          setTerminalOutput(prev => [...prev, `[SYSTEM ERROR] ${err2?.message || 'Gagal menjalankan perintah native. Pastikan izin Shell sudah dikonfigurasi.'}`]);
+          appendOutput(`[SYSTEM ERROR] ${err2?.message || 'Gagal menjalankan perintah native.'}`);
         }
       }
     }
     
-    // Fallback Simulator (Web Mode or Tauri without path)
+    // Fallback Simulator
     const cmd = val.toLowerCase();
     if (cmd === 'clear') {
-      setTerminalOutput([]);
+      setTerminalSessions(prev => prev.map(s => s.id === sessionId ? { ...s, output: [] } : s));
     } else if (cmd === 'ls') {
-      setTerminalOutput(prev => [...prev, files.map(f => f.name).join('  ')]);
+      appendOutput(files.map(f => f.name).join('  '));
     } else if (cmd === 'help') {
-      setTerminalOutput(prev => [...prev, 'Available: clear, ls, help, scan, build, date, aura --version, whoami, neofetch, git status, npm install, npm run dev']);
+      appendOutput('Available: clear, ls, help, scan, build, date, aura --version, whoami, neofetch, git status, npm install, npm run dev');
     } else if (cmd === 'scan') {
       scanForProblems();
     } else if (cmd === 'date') {
-      setTerminalOutput(prev => [...prev, new Date().toLocaleString()]);
+      appendOutput(new Date().toLocaleString());
     } else if (cmd === 'build' || cmd === 'npm run build') {
-      setTerminalOutput(prev => [...prev, '> aura-project@1.0.0 build', '> tsc && vite build', '', 'vite v4.4.9 building for production...', '✓ built in 1.23s']);
+      appendOutput('> aura-project@1.0.0 build');
+      appendOutput('> tsc && vite build');
+      appendOutput('✓ built in 1.23s');
     } else if (cmd === 'aura --version') {
-      setTerminalOutput(prev => [...prev, 'Aura IDE v3.9.2 (Professional Desktop)']);
+      appendOutput('Aura IDE v4.0.0 (Cursor Evolution)');
     } else if (cmd === 'whoami') {
-      setTerminalOutput(prev => [...prev, 'aura-developer']);
+      appendOutput('aura-developer');
     } else if (cmd === 'neofetch') {
-      setTerminalOutput(prev => [...prev, 
-        '      .---.      OS: Windows 11 / AuraOS 3.9.2',
-        '     /     \\     Host: Aura Native Desktop',
-        '    | () () |    Kernel: Native Bridge',
-        '      |||||      Shell: PowerShell (Simulated in Web Mode)'
-      ]);
+      appendOutput('      .---.      OS: Windows 11 / AuraOS 4.0.0');
+      appendOutput('     /     \\     Host: Aura Native Desktop');
+      appendOutput('    | () () |    Kernel: Native Bridge');
+      appendOutput('      |||||      Shell: PowerShell (Dual-Path)');
     } else if (cmd.startsWith('git') || cmd.startsWith('npm')) {
       if (isTauri) {
-        setTerminalOutput(prev => [...prev, `[AURA INFO] Perintah "${cmd.split(' ')[0]}" perlu folder proyek terbuka secara Native. Klik "Open Folder Proyek (Native)" di toolbar Explorer.`]);
+        appendOutput(`[AURA INFO] Perintah "${cmd.split(' ')[0]}" perlu folder proyek terbuka secara Native.`);
       } else {
-        setTerminalOutput(prev => [...prev, '[SIMULATOR] Fitur ini hanya aktif di versi Desktop (.exe). Unduh dari GitHub Releases.']);
+        appendOutput('[SIMULATOR] Fitur ini hanya aktif di versi Desktop (.exe).');
       }
     } else {
-      setTerminalOutput(prev => [...prev, `Command not found: ${val}`]);
+      appendOutput(`Command not found: ${val}`);
     }
   };
 
@@ -1450,11 +1482,47 @@ Integrations:
     switch (bottomTab) {
       case 'terminal':
         return (
-          <div className="flex-1 flex flex-col font-mono text-[13px] p-2 overflow-hidden bg-black/40">
-            <div className="flex-1 overflow-y-auto custom-scrollbar mb-2 space-y-1">
-              <div className="text-emerald-400 font-bold">Welcome to Aura Terminal v2.5.0</div>
-              <div className="text-gray-500 italic">Type 'help' to see available commands.</div>
-              {terminalOutput.map((line, i) => (
+          <div className="flex-1 flex flex-col font-mono text-[13px] overflow-hidden bg-[#0a0a0a]">
+            {/* Terminal Tabs Workspace */}
+            <div className="flex items-center gap-1 border-b border-white/5 bg-black/40 px-2 py-1">
+              {terminalSessions.map(s => (
+                <div 
+                  key={s.id}
+                  onClick={() => setActiveTerminalId(s.id)}
+                  className={cn(
+                    "group flex items-center gap-2 px-3 py-1 rounded-md cursor-pointer transition-all text-[11px] font-medium border border-transparent",
+                    activeTerminalId === s.id 
+                      ? "bg-blue-600/20 text-blue-400 border-blue-500/30" 
+                      : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+                  )}
+                >
+                  <Terminal size={12} className={activeTerminalId === s.id ? "text-blue-400" : "text-gray-600"} />
+                  <span>{s.name}</span>
+                  {terminalSessions.length > 1 && (
+                    <X 
+                      size={10} 
+                      className="opacity-0 group-hover:opacity-100 hover:text-white transition-opacity" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeTerminalSession(s.id);
+                      }}
+                    />
+                  )}
+                </div>
+              ))}
+              <button 
+                onClick={addTerminalSession}
+                className="p-1.5 hover:bg-white/5 rounded-md text-gray-500 hover:text-white transition-all ml-1"
+                title="New Terminal"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+            {/* Terminal Output */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-2 space-y-1">
+              <div className="text-emerald-400 font-bold text-[11px] opacity-70 mb-2">Aura Terminal v4.0.0 (Cursor Core)</div>
+              {currentSession.output.map((line, i) => (
                 <div key={i} className="flex gap-2">
                   {line.startsWith('aura-project $') ? (
                     <div className="flex gap-2">
@@ -1464,12 +1532,21 @@ Integrations:
                       <span className="text-white">{line.replace('aura-project $', '').trim()}</span>
                     </div>
                   ) : (
-                    <div className={cn(line.startsWith('Command not found') ? "text-red-400" : "text-[#cccccc]")}>{line}</div>
+                    <div className={cn(
+                      "whitespace-pre-wrap break-all",
+                      line.startsWith('Command not found') ? "text-red-400" : 
+                      line.startsWith('[ERR]') ? "text-red-500" :
+                      line.startsWith('✓') ? "text-emerald-400" :
+                      line.startsWith('✗') ? "text-red-400" :
+                      "text-[#cccccc]"
+                    )}>{line}</div>
                   )}
                 </div>
               ))}
             </div>
-            <div className="flex items-center gap-2 text-white border-t border-white/5 pt-2">
+
+            {/* Terminal Input */}
+            <div className="flex items-center gap-2 text-white border-t border-white/5 p-2 bg-black/20">
               <span className="text-emerald-500">➜</span>
               <span className="text-blue-400 font-bold">aura-project</span>
               <span className="text-gray-500">$</span>
@@ -1478,7 +1555,8 @@ Integrations:
                 value={terminalInput}
                 onChange={(e) => setTerminalInput(e.target.value)}
                 onKeyDown={handleTerminalCommand}
-                className="flex-1 bg-transparent border-none outline-none text-white"
+                className="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder:text-gray-700"
+                placeholder="type command..."
                 autoFocus
               />
             </div>
@@ -1628,35 +1706,37 @@ Integrations:
               <div className="max-h-[400px] overflow-y-auto p-2">
                 {[
                   { icon: <Monitor size={16} />, label: 'Build Windows App (.exe) - Cloud Build (GitHub Actions)', action: () => {
-                      setTerminalOutput(prev => [...prev, 
-                        '[AURA SYSTEM] Persiapan Cloud Build Desktop...', 
-                        '1. Pastikan Anda sudah Push kode terbaru ke GitHub.', 
-                        '2. Buka tab Actions di GitHub.com.', 
-                        '3. Tunggu hingga workflow "Build Windows EXE (Tauri)" selesai.', 
-                        '4. Download hasil build (.msi) dari bagian "Artifacts".'
-                      ]);
+                      appendTerminalOutput('[AURA SYSTEM] Persiapan Cloud Build Desktop...');
+                      appendTerminalOutput('1. Pastikan Anda sudah Push kode terbaru ke GitHub.');
+                      appendTerminalOutput('2. Buka tab Actions di GitHub.com.');
+                      appendTerminalOutput('3. Tunggu hingga workflow "Build Windows EXE (Tauri)" selesai.');
+                      appendTerminalOutput('4. Download hasil build (.msi) dari bagian "Artifacts".');
                       setBottomTab('terminal');
                     } 
                   },
                   { icon: <Monitor size={16} />, label: 'Build Windows App (.exe) - Local (Tauri)', action: () => {
-                      setTerminalOutput(prev => [...prev, '[AURA SYSTEM] Persiapan Lokal Build Desktop (Tauri)...', 'Silakan jalankan "npm run build:tauri" di terminal lokal Anda.', 'Pastikan Rust sudah terinstall (rustup.rs).']);
+                      appendTerminalOutput('[AURA SYSTEM] Persiapan Lokal Build Desktop (Tauri)...');
+                      appendTerminalOutput('Silakan jalankan "npm run build:tauri" di terminal lokal Anda.');
+                      appendTerminalOutput('Pastikan Rust sudah terinstall (rustup.rs).');
                       setBottomTab('terminal');
                     } 
                   },
                   { icon: <Smartphone size={16} />, label: 'Build Android App (.apk) - Cloud Build (GitHub Actions)', action: () => {
-                      setTerminalOutput(prev => [...prev, 
-                        '[AURA SYSTEM] Persiapan Cloud Build Android...', 
-                        '1. Pastikan Anda sudah Push kode terbaru ke GitHub.', 
-                        '2. Buka tab Actions di GitHub.com.', 
-                        '3. Tunggu hingga workflow "Build Android APK" selesai (centang hijau).', 
-                        '4. Scroll ke bawah halaman tersebut ke kolom "Artifacts".', 
-                        '5. Download file "aura-ide-android-debug-apk" yang berisi file .apk Anda.'
-                      ]);
+                      appendTerminalOutput('[AURA SYSTEM] Persiapan Cloud Build Android...');
+                      appendTerminalOutput('1. Pastikan Anda sudah Push kode terbaru ke GitHub.');
+                      appendTerminalOutput('2. Buka tab Actions di GitHub.com.');
+                      appendTerminalOutput('3. Tunggu hingga workflow "Build Android APK" selesai (centang hijau).');
+                      appendTerminalOutput('4. Scroll ke bawah halaman tersebut ke kolom "Artifacts".');
+                      appendTerminalOutput('5. Download file "aura-ide-android-debug-apk" yang berisi file .apk Anda.');
                       setBottomTab('terminal');
                     } 
                   },
                   { icon: <Smartphone size={16} />, label: 'Build Android App (.apk) - Local (Capacitor)', action: () => {
-                      setTerminalOutput(prev => [...prev, '[AURA SYSTEM] Persiapan Lokal Build Android (Capacitor)...', '1. Jalankan "npm run build" untuk update aset.', '2. Jalankan "npx cap sync" untuk sinkronisasi.', '3. Jalankan "npx cap open android" untuk membuka di Android Studio.', 'Build APK secara manual di Android Studio.']);
+                      appendTerminalOutput('[AURA SYSTEM] Persiapan Lokal Build Android (Capacitor)...');
+                      appendTerminalOutput('1. Jalankan "npm run build" untuk update aset.');
+                      appendTerminalOutput('2. Jalankan "npx cap sync" untuk sinkronisasi.');
+                      appendTerminalOutput('3. Jalankan "npx cap open android" untuk membuka di Android Studio.');
+                      appendTerminalOutput('Build APK secara manual di Android Studio.');
                       setBottomTab('terminal');
                     } 
                   },
@@ -1670,7 +1750,7 @@ Integrations:
                   { icon: <Layout size={16} />, label: 'Toggle Layout Mode', action: () => setLayoutMode(layoutMode === 'classic' ? 'modern' : 'classic') },
                   { icon: <Eye size={16} />, label: 'Toggle Zen Mode', action: () => setZenMode(!zenMode) },
                   { icon: <Sparkles size={16} />, label: 'Scan Code for Problems', action: scanForProblems },
-                  { icon: <Terminal size={16} />, label: 'Clear Terminal', action: () => setTerminalOutput(['Terminal cleared.']) },
+                  { icon: <Terminal size={16} />, label: 'Clear Terminal', action: () => setTerminalSessions(prev => prev.map(s => s.id === activeTerminalId ? { ...s, output: ['Terminal cleared.'] } : s)) },
                 ].filter(cmd => cmd.label.toLowerCase().includes(commandInput.toLowerCase())).map((cmd, i) => (
                   <div 
                     key={i}
@@ -1776,6 +1856,14 @@ Integrations:
             {sidebarTab === 'ai' && <motion.div layoutId="activeTab" className="absolute left-[-12px] w-1 h-8 bg-blue-500 rounded-r-full" />}
           </div>
           <div 
+            onClick={() => setSidebarTab('git')}
+            title="Source Control (Ctrl+Shift+G)"
+            className={cn("p-2.5 cursor-pointer transition-all duration-200 rounded-xl group relative", sidebarTab === 'git' ? "text-white bg-blue-600/20 shadow-lg shadow-blue-500/10" : "text-[#858585] hover:text-white hover:bg-white/5")}
+          >
+            <GitBranch size={24} className={cn("transition-transform duration-200", sidebarTab === 'git' && "scale-110")} />
+            {sidebarTab === 'git' && <motion.div layoutId="activeTab" className="absolute left-[-12px] w-1 h-8 bg-blue-500 rounded-r-full" />}
+          </div>
+          <div 
             onClick={() => setSidebarTab('github')}
             title="GitHub Integration"
             className={cn("p-2.5 cursor-pointer transition-all duration-200 rounded-xl group relative", sidebarTab === 'github' ? "text-white bg-blue-600/20 shadow-lg shadow-blue-500/10" : "text-[#858585] hover:text-white hover:bg-white/5")}
@@ -1840,6 +1928,7 @@ Integrations:
               <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)] animate-pulse" />
               {sidebarTab === 'files' && 'Explorer'}
               {sidebarTab === 'search' && 'Search'}
+              {sidebarTab === 'git' && 'Source Control'}
               {sidebarTab === 'ai' && 'Aura AI Chat'}
               {sidebarTab === 'github' && 'GitHub'}
               {sidebarTab === 'settings' && 'Settings'}
@@ -1883,6 +1972,16 @@ Integrations:
                   </button>
                 </div>
               )}
+              {sidebarTab === 'git' && (
+                <div className="flex gap-2.5">
+                  <button onClick={() => executeCommand('git fetch')} title="Fetch from Remote" className="hover:text-blue-400 transition-colors">
+                    <RefreshCw size={14} />
+                  </button>
+                  <button onClick={() => executeCommand('git status')} title="Check Status" className="hover:text-white transition-colors">
+                    <Search size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1918,6 +2017,57 @@ Integrations:
                         </div>
                       ))}
                     </div>
+                </motion.div>
+              )}
+
+              {sidebarTab === 'git' && (
+                <motion.div 
+                  key="git"
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex flex-col p-4 gap-4"
+                >
+                  <p className="text-[11px] text-[#858585] italic leading-tight">
+                    {isTauri ? 'Native project detected. Git commands will run in your system terminal.' : 'Simulated Git mode (Web). Build Desktop to use real Git.'}
+                  </p>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                       <div className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">Changes</div>
+                       <div className="space-y-1">
+                         {files.slice(0, 3).map(f => (
+                           <div key={f.id} className="flex items-center justify-between text-[12px] px-2 py-1.5 hover:bg-white/5 rounded-lg group">
+                             <div className="flex items-center gap-2 truncate">
+                               {getFileIcon(f.name)}
+                               <span className="truncate">{f.name}</span>
+                             </div>
+                             <span className="text-[10px] text-emerald-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">M</span>
+                           </div>
+                         ))}
+                         {files.length > 3 && <p className="text-[10px] text-gray-500 text-center mt-2">... and {files.length - 3} other files</p>}
+                       </div>
+                    </div>
+
+                    <div className="flex flex-col gap-2 mt-4 pt-4 border-t border-white/5">
+                      <input 
+                        type="text" 
+                        placeholder="Commit message (Ctrl+Enter to commit)"
+                        className="bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-blue-500/50 transition-colors"
+                      />
+                      <button 
+                        onClick={() => {
+                          const msg = "chore: updates from AURA IDE";
+                          executeCommand(`git add . ; git commit -m "${msg}" ; git push`);
+                        }}
+                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 rounded-lg text-[12px] transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                      >
+                        <GitBranch size={14} /> Commit & Push
+                      </button>
+                      <p className="text-[10px] text-center text-gray-500 opacity-60">One-click automation v4.0.0</p>
+                    </div>
+                  </div>
                 </motion.div>
               )}
 
