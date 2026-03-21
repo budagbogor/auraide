@@ -50,7 +50,8 @@ import {
   Keyboard,
   FolderTree,
   CloudUpload,
-  CloudDownload
+  CloudDownload,
+  GitBranch
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { motion, AnimatePresence } from 'motion/react';
@@ -589,6 +590,9 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  const [showBottomPanel, setShowBottomPanel] = useState(true);
+  const [bottomTab, setBottomTab] = useState<'terminal' | 'problems' | 'output' | 'debug'>('terminal');
   const [sidebarTab, setSidebarTab] = useState<'files' | 'search' | 'git' | 'ai' | 'github' | 'settings' | 'browser'>('files');
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     { role: 'assistant', content: 'Welcome to **Aura AI IDE**. I am your coding assistant. How can I help you today?' }
@@ -602,10 +606,11 @@ export default function App() {
   
   const currentSession = terminalSessions.find(s => s.id === activeTerminalId) || terminalSessions[0];
 
-  const appendTerminalOutput = (data: string, sessionId?: string) => {
+  const appendTerminalOutput = (data: string | string[], sessionId?: string) => {
     const targetId = sessionId || activeTerminalId;
+    const lines = Array.isArray(data) ? data : [data];
     setTerminalSessions(prev => prev.map(s => 
-      s.id === targetId ? { ...s, output: [...s.output, data] } : s
+      s.id === targetId ? { ...s, output: [...s.output, ...lines] } : s
     ));
   };
 
@@ -646,7 +651,7 @@ export default function App() {
       projectDirHandle = await baseDirHandle.getDirectoryHandle(repo.name, { create: true });
     } catch (err) {
       console.log('User cancelled or directory picker unsupported:', err);
-      setTerminalOutput(prev => [...prev, '[GITHUB] Clone cancelled. Please select a folder to save the repository.']);
+      appendTerminalOutput('[GITHUB] Clone cancelled. Please select a folder to save the repository.');
       return;
     }
 
@@ -658,7 +663,7 @@ export default function App() {
       const clonedFiles = await cloneRepository(githubToken, repo.owner.login, repo.name);
       
       if (clonedFiles.length > 0) {
-        setTerminalOutput(prev => [...prev, `[SYSTEM] Saving ${clonedFiles.length} files, recreating folder structure...`]);
+        appendTerminalOutput(`[SYSTEM] Saving ${clonedFiles.length} files, recreating folder structure...`);
         
         // Write each file to the selected local directory maintaining structure
         for (const file of clonedFiles) {
@@ -703,7 +708,7 @@ export default function App() {
         const { writeTextFile } = await import('@tauri-apps/plugin-fs');
         if (activeFile.path) {
           await writeTextFile(activeFile.path, activeFile.content);
-          setTerminalOutput(prev => [...prev, `[SYSTEM] File saved to disk: ${activeFile.path}`]);
+          appendTerminalOutput(`[SYSTEM] File saved to disk: ${activeFile.path}`);
         } else {
           // Fallback if no path
           const blob = new Blob([activeFile.content], { type: 'text/plain' });
@@ -716,7 +721,7 @@ export default function App() {
       // Web Mode: Download via file-saver
       const blob = new Blob([activeFile.content], { type: 'text/plain' });
       saveAs(blob, activeFile.name);
-      setTerminalOutput(prev => [...prev, `[AURA] File downloaded: ${activeFile.name}`]);
+      appendTerminalOutput(`[AURA] File downloaded: ${activeFile.name}`);
     }
   };
 
@@ -724,7 +729,7 @@ export default function App() {
     setFiles([]);
     setActiveFileId('');
     setProjectName('AURA-PROJECT');
-    setTerminalOutput(prev => [...prev, 'Folder closed.']);
+    appendTerminalOutput('Folder closed.');
   };
 
   const [supabaseUrl, setSupabaseUrl] = useState(() => localStorage.getItem('aura_supabase_url') || '');
@@ -767,7 +772,6 @@ export default function App() {
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModel[]>(FREE_MODELS);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<{ name: string; type: string; data: string; content?: string }[]>([]);
-  const [bottomTab, setBottomTab] = useState<'terminal' | 'problems' | 'output' | 'debug'>('terminal');
   const [problems, setProblems] = useState<CodeProblem[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [aiRules, setAiRules] = useState<string>('');
@@ -923,7 +927,7 @@ export default function App() {
       setLayoutMode('modern');
       setZenMode(false);
     }
-    setTerminalOutput(prev => [...prev, `Layout switched to ${preset} mode.`]);
+    appendTerminalOutput(`Layout switched to ${preset} mode.`);
   };
 
   const scanForProblems = async () => {
@@ -991,11 +995,11 @@ export default function App() {
       if (jsonMatch) {
         const aiProblems = JSON.parse(jsonMatch[0]);
         setProblems(prev => [...prev, ...aiProblems]);
-        setTerminalOutput(prev => [...prev, `Scan complete: Found ${localProblems.length + aiProblems.length} potential issues.`]);
+        appendTerminalOutput(`Scan complete: Found ${localProblems.length + aiProblems.length} potential issues.`);
       }
     } catch (error) {
       console.error('AI Scan Error:', error);
-      setTerminalOutput(prev => [...prev, `AI Scan failed, showing local results only.`]);
+      appendTerminalOutput(`AI Scan failed, showing local results only.`);
     } finally {
       setIsScanning(false);
     }
@@ -1183,11 +1187,15 @@ Integrations:
         setFiles(newFiles);
         setActiveFileId(newFiles[0].id);
         setNativeProjectPath(null); // Web handles don't have native paths
-        setTerminalOutput(prev => [...prev, `Opened folder: ${dirHandle.name}`, `Loaded ${newFiles.length} files.`, `[WARNING] Folder dibuka via Browser API. Terminal tidak mendukung perintah sistem (npm/git) dalam mode ini. Gunakan mode Native di versi Desktop untuk dukungan penuh.`]);
+        appendTerminalOutput([
+          `Opened folder: ${dirHandle.name}`, 
+          `Loaded ${newFiles.length} files.`, 
+          `[WARNING] Folder dibuka via Browser API. Terminal tidak mendukung perintah sistem (npm/git) dalam mode ini.`
+        ]);
       }
     } catch (err) {
       console.error('Error opening folder:', err);
-      setTerminalOutput(prev => [...prev, 'Error: Could not open local folder. (Browser may block this in iframes)']);
+      appendTerminalOutput('Error: Could not open local folder. (Browser may block this in iframes)');
     }
   };
 
@@ -1221,11 +1229,11 @@ Integrations:
         setActiveFileId(newFiles[0].id);
         const folderName = rootPath.split(/[\\/]/).pop() || rootPath;
         setProjectName(folderName.toUpperCase());
-        setTerminalOutput(prev => [...prev, `[NATIVE] Sync lengkap: ${newFiles.length} file dimuat dari ${rootPath}`]);
+        appendTerminalOutput(`[NATIVE] Sync lengkap: ${newFiles.length} file dimuat dari ${rootPath}`);
       }
     } catch (err: any) {
       console.error('Scan Native Error:', err);
-      setTerminalOutput(prev => [...prev, `[ERROR] Gagal memindai folder: ${err.message}`]);
+      appendTerminalOutput(`[ERROR] Gagal memindai folder: ${err.message}`);
     }
   };
 
@@ -1245,16 +1253,16 @@ Integrations:
       if (selected && typeof selected === 'string') {
         const normalizedPath = selected.replace(/\\/g, '/');
         setNativeProjectPath(normalizedPath);
-        setTerminalOutput(prev => [...prev, `[SYSTEM] Folder Native dipilih: ${normalizedPath}`, '[SYSTEM] Menyinkronkan file...']);
+        appendTerminalOutput([`[SYSTEM] Folder Native dipilih: ${normalizedPath}`, '[SYSTEM] Menyinkronkan file...']);
         
         await syncFilesFromNativePath(normalizedPath);
         
-        setTerminalOutput(prev => [...prev, '[SYSTEM] Terminal & Editor kini terhubung langsung ke Disk lokal.']);
+        appendTerminalOutput('[SYSTEM] Terminal & Editor kini terhubung langsung ke Disk lokal.');
         alert("Sinkronisasi Native Berhasil! Anda sekarang bekerja langsung di file sistem PC Anda.");
       }
     } catch (err: any) {
       console.error('Native Dialog Error:', err);
-      setTerminalOutput(prev => [...prev, `[ERROR] Gagal membuka folder native: ${err.message}`]);
+      appendTerminalOutput(`[ERROR] Gagal membuka folder native: ${err.message}`);
     }
   };
 
@@ -1265,7 +1273,7 @@ Integrations:
     });
     const blob = await zip.generateAsync({ type: 'blob' });
     saveAs(blob, 'aura-project.zip');
-    setTerminalOutput(prev => [...prev, 'Project exported as aura-project.zip']);
+    appendTerminalOutput('Project exported as aura-project.zip');
   };
 
   const DEFAULT_SUPABASE_URL = 'https://ngbzuagtzlepqutnkfeo.supabase.co';
@@ -1282,15 +1290,15 @@ Integrations:
     const name = prompt("Simpan ke Supabase Cloud dengan Nama Project:", projectName);
     if (!name) return;
     
-    setTerminalOutput(prev => [...prev, `[CLOUD] Mengekspor ${files.length} file ke Supabase...`]);
+    appendTerminalOutput(`[CLOUD] Mengekspor ${files.length} file ke Supabase...`);
     try {
       await saveProjectToCloud({ url: activeUrl, anonKey: activeKey }, name, files);
       setProjectName(name);
-      setTerminalOutput(prev => [...prev, `[CLOUD] Project '${name}' berhasil disimpan menggunakan ${supabaseUrl ? 'Database Custom (Pengguna)' : 'Database Default Aura'}!`]);
+      appendTerminalOutput(`[CLOUD] Project '${name}' berhasil disimpan menggunakan ${supabaseUrl ? 'Database Custom (Pengguna)' : 'Database Default Aura'}!`);
       alert("Berhasil disimpan ke Cloud!");
     } catch (err: any) {
       console.error(err);
-      setTerminalOutput(prev => [...prev, `[CLOUD ERROR] ${err.message}`]);
+      appendTerminalOutput(`[CLOUD ERROR] ${err.message}`);
       alert("Gagal menyimpan ke Cloud. Lihat output terminal untuk detailnya.");
     }
   };
@@ -1304,7 +1312,7 @@ Integrations:
       return;
     }
     try {
-      setTerminalOutput(prev => [...prev, `[CLOUD] Mengambil daftar proyek dari ${supabaseUrl ? 'Database Custom' : 'Database Default'}...`]);
+      appendTerminalOutput(`[CLOUD] Mengambil daftar proyek dari ${supabaseUrl ? 'Database Custom' : 'Database Default'}...`);
       const list = await listCloudProjects({ url: activeUrl, anonKey: activeKey });
       
       if (!list || list.length === 0) {
@@ -1317,18 +1325,18 @@ Integrations:
       
       if (!name) return;
       
-      setTerminalOutput(prev => [...prev, `[CLOUD] Mengunduh project '${name}'...`]);
+      appendTerminalOutput(`[CLOUD] Mengunduh project '${name}'...`);
       const project = await loadProjectFromCloud({ url: activeUrl, anonKey: activeKey }, name);
       
       if (project && project.files) {
         setFiles(project.files);
         if (project.files.length > 0) setActiveFileId(project.files[0].id);
         setProjectName(project.project_name);
-        setTerminalOutput(prev => [...prev, `[CLOUD] Project '${project.project_name}' berhasil dimuat dengan ${project.files.length} file!`]);
+        appendTerminalOutput(`[CLOUD] Project '${project.project_name}' berhasil dimuat dengan ${project.files.length} file!`);
       }
     } catch (err: any) {
       console.error(err);
-      setTerminalOutput(prev => [...prev, `[CLOUD ERROR] ${err.message}`]);
+      appendTerminalOutput(`[CLOUD ERROR] ${err.message}`);
       alert(`Gagal memuat dari Cloud: ${err.message}`);
     }
   };
@@ -1346,15 +1354,15 @@ Integrations:
     
     if (!name) return;
 
-    setTerminalOutput(prev => [...prev, `[GITHUB] Memulai pengiriman (Push) ${files.length} file ke repositori '${name}'...`]);
+    appendTerminalOutput(`[GITHUB] Memulai pengiriman (Push) ${files.length} file ke repositori '${name}'...`);
     try {
       await pushProjectToGitHub(githubToken, name, files, (msg: string) => {
-        setTerminalOutput(prev => [...prev, `[GITHUB] ${msg}`]);
+        appendTerminalOutput(`[GITHUB] ${msg}`);
       });
       alert("Berhasil mem-push kode ke GitHub!");
     } catch (err: any) {
       console.error('GitHub Push Error:', err);
-      setTerminalOutput(prev => [...prev, `[GITHUB ERROR] Gagal push ke GitHub: ${err.message}`]);
+      appendTerminalOutput(`[GITHUB ERROR] Gagal push ke GitHub: ${err.message}`);
       alert("Gagal mem-push ke GitHub. Silakan periksa koneksi atau token Anda.");
     }
   };
@@ -2170,7 +2178,7 @@ Integrations:
                                         <button
                                           onClick={() => {
                                             navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
-                                            setTerminalOutput(prev => [...prev, 'Code copied to clipboard.']);
+                                            appendTerminalOutput('Code copied to clipboard.');
                                           }}
                                           className="p-1.5 bg-white/10 hover:bg-white/20 rounded-md text-white/70 hover:text-white transition-all backdrop-blur-md border border-white/10"
                                           title="Copy Code"
@@ -2314,7 +2322,7 @@ Integrations:
                               onClick={() => {
                                 setGithubToken('');
                                 localStorage.removeItem('aura_github_token');
-                                setTerminalOutput(prev => [...prev, '[GITHUB] Token reset successfully.']);
+                                appendTerminalOutput('[GITHUB] Token reset successfully.');
                               }}
                               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-red-400 hover:text-red-300 transition-colors"
                               title="Reset Token"
@@ -2332,9 +2340,9 @@ Integrations:
                               const repos = await fetchUserRepos(githubToken);
                               setGithubRepos(repos);
                               setGithubConnected(true);
-                              setTerminalOutput(prev => [...prev, '[GITHUB] Connected successfully.']);
+                              appendTerminalOutput('[GITHUB] Connected successfully.');
                             } catch (error) {
-                              setTerminalOutput(prev => [...prev, `[GITHUB] Error: ${error instanceof Error ? error.message : 'Failed to connect'}`]);
+                              appendTerminalOutput(`[GITHUB] Error: ${error instanceof Error ? error.message : 'Failed to connect'}`);
                             } finally {
                               setIsFetchingRepos(false);
                             }
@@ -2365,7 +2373,7 @@ Integrations:
                               setGithubConnected(false);
                               setGithubToken('');
                               localStorage.removeItem('aura_github_token');
-                              setTerminalOutput(prev => [...prev, '[GITHUB] Disconnected and token reset.']);
+                              appendTerminalOutput('[GITHUB] Disconnected and token reset.');
                             }}
                             className="text-[10px] text-red-400 hover:text-red-300 border-l border-white/10 pl-2"
                           >
@@ -2582,7 +2590,7 @@ Integrations:
                                     onClick={() => {
                                       setGeminiApiKey('');
                                       localStorage.removeItem('aura_gemini_key');
-                                      setTerminalOutput(prev => [...prev, '[AI] Gemini API Key reset.']);
+                                      appendTerminalOutput('[AI] Gemini API Key reset.');
                                     }}
                                     className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
                                     title="Reset Key"
@@ -2626,7 +2634,7 @@ Integrations:
                                     onClick={() => {
                                       setBytezApiKey('');
                                       localStorage.removeItem('aura_bytez_key');
-                                      setTerminalOutput(prev => [...prev, '[AI] Bytez API Key reset.']);
+                                      appendTerminalOutput('[AI] Bytez API Key reset.');
                                     }}
                                     className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
                                     title="Reset Key"
@@ -2682,7 +2690,7 @@ Integrations:
                                     onClick={() => {
                                       setSumopodApiKey('');
                                       localStorage.removeItem('aura_sumopod_key');
-                                      setTerminalOutput(prev => [...prev, '[AI] SumoPod API Key reset.']);
+                                      appendTerminalOutput('[AI] SumoPod API Key reset.');
                                     }}
                                     className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
                                     title="Reset Key"
@@ -2725,7 +2733,7 @@ Integrations:
                                     onClick={() => {
                                       setOpenRouterApiKey('');
                                       localStorage.removeItem('aura_openrouter_key');
-                                      setTerminalOutput(prev => [...prev, '[AI] OpenRouter API Key reset.']);
+                                      appendTerminalOutput('[AI] OpenRouter API Key reset.');
                                     }}
                                     className="p-1.5 text-red-400 hover:text-red-300 transition-colors"
                                     title="Reset Key"
@@ -2770,7 +2778,7 @@ Integrations:
                               const btn = document.getElementById('test-ai-conn-btn');
                               if (btn) btn.innerHTML = '<span class="animate-pulse">Testing...</span>';
                               try {
-                                setTerminalOutput(prev => [...prev, `[AI Test] Validating API connection for ${aiProvider}...`]);
+                                appendTerminalOutput(`[AI Test] Validating API connection for ${aiProvider}...`);
                                 // Simulate API connection test
                                 await new Promise(r => setTimeout(r, 1000));
                                 let hasKey = false;
@@ -2780,14 +2788,14 @@ Integrations:
                                 if (aiProvider === 'bytez') hasKey = !!(bytezApiKey || process.env.BYTEZ_API_KEY);
                                 
                                 if (hasKey) {
-                                  setTerminalOutput(prev => [...prev, `[AI Test] Connection to ${aiProvider} successful! Key detected.`]);
+                                  appendTerminalOutput(`[AI Test] Connection to ${aiProvider} successful! Key detected.`);
                                   if (btn) btn.innerHTML = '<span class="text-emerald-500 font-bold">Success!</span>';
                                 } else {
-                                  setTerminalOutput(prev => [...prev, `[AI Test] Error: API Key missing for ${aiProvider}.`]);
+                                  appendTerminalOutput(`[AI Test] Error: API Key missing for ${aiProvider}.`);
                                   if (btn) btn.innerHTML = '<span class="text-red-500 font-bold">Failed</span>';
                                 }
                               } catch (e: any) {
-                                setTerminalOutput(prev => [...prev, `[AI Test] Failed: ${e.message}`]);
+                                appendTerminalOutput(`[AI Test] Failed: ${e.message}`);
                                 if (btn) btn.innerHTML = '<span class="text-red-500 font-bold">Failed</span>';
                               }
                               setTimeout(() => { if (btn) btn.innerText = 'Test Connection'; }, 3000);
@@ -2899,7 +2907,7 @@ Integrations:
                               onClick={() => {
                                 setSupabaseUrl('');
                                 localStorage.removeItem('aura_supabase_url');
-                                setTerminalOutput(prev => [...prev, '[SUPABASE] URL reset.']);
+                                appendTerminalOutput('[SUPABASE] URL reset.');
                               }}
                               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-red-400 hover:text-red-300 transition-colors"
                               title="Reset URL"
@@ -2924,7 +2932,7 @@ Integrations:
                               onClick={() => {
                                 setSupabaseAnonKey('');
                                 localStorage.removeItem('aura_supabase_key');
-                                setTerminalOutput(prev => [...prev, '[SUPABASE] Key reset.']);
+                                appendTerminalOutput('[SUPABASE] Key reset.');
                               }}
                               className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-red-400 hover:text-red-300 transition-colors"
                               title="Reset Key"
@@ -2941,9 +2949,9 @@ Integrations:
                             const { testSupabaseConnection } = await import('./services/supabaseService');
                             await testSupabaseConnection({ url: supabaseUrl, anonKey: supabaseAnonKey });
                             setSupabaseConnected(true);
-                            setTerminalOutput(prev => [...prev, '[SUPABASE] Connected successfully.']);
+                            appendTerminalOutput('[SUPABASE] Connected successfully.');
                           } catch (error) {
-                            setTerminalOutput(prev => [...prev, `[SUPABASE] Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+                            appendTerminalOutput(`[SUPABASE] Connection failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
                             setSupabaseConnected(false);
                           }
                         }}
@@ -3062,7 +3070,7 @@ Integrations:
                               for (const req of tpl.requirements) {
                                 const val = mcpTemplateData[req.key] || '';
                                 if (!val) {
-                                  setTerminalOutput(logs => [...logs, `[MCP] Please provide a value for ${req.label} before adding.`]);
+                                  appendTerminalOutput(`[MCP] Please provide a value for ${req.label} before adding.`);
                                   return;
                                 }
                                 if (req.type === 'arg') {
@@ -3093,7 +3101,7 @@ Integrations:
 
                             setMcpServers(prev => {
                               if (prev.some(s => s.name === finalName)) {
-                                setTerminalOutput(logs => [...logs, `[MCP] A server named '${finalName}' already exists. Please use a different name or remove the existing one first.`]);
+                                appendTerminalOutput(`[MCP] A server named '${finalName}' already exists. Please use a different name or remove the existing one first.`);
                                 return prev;
                               }
                               const updated = [...prev, { name: finalName, url: finalUrl, type: finalType, connected: false, tools: [], env: parsedEnv }];
@@ -3132,13 +3140,13 @@ Integrations:
                                       return;
                                     }
                                     try {
-                                      setTerminalOutput(prev => [...prev, `[MCP] Connecting to ${server.name} (${server.type})...`]);
+                                      appendTerminalOutput(`[MCP] Connecting to ${server.name} (${server.type})...`);
                                       const { mcpManager } = await import('./services/mcpService');
                                       const tools = await mcpManager.connect({ name: server.name, serverUrl: server.url, type: server.type, env: server.env });
                                       setMcpServers(prev => prev.map((s, i) => i === idx ? { ...s, connected: true, tools } : s));
-                                      setTerminalOutput(prev => [...prev, `[MCP] Connected! Loaded ${tools.length} tools.`]);
+                                      appendTerminalOutput(`[MCP] Connected! Loaded ${tools.length} tools.`);
                                     } catch (error: any) {
-                                      setTerminalOutput(prev => [...prev, `[MCP] Failed to connect: ${error.message || error}`]);
+                                      appendTerminalOutput(`[MCP] Failed to connect: ${error.message || error}`);
                                     }
                                   }}
                                   className={cn(
