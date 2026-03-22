@@ -1343,9 +1343,9 @@ Integrations:
     appendOutput(`${cwdDisplay} $ ${val}`);
 
     // If running in Tauri Desktop mode, use PowerShell as the universal shell (like VSCode)
-    if (isTauri && TauriCommand && nativeProjectPath) {
+    if (isTauri && TauriCommand) {
       try {
-        const normalizedCwd = nativeProjectPath.replace(/\//g, '\\');
+        const normalizedCwd = (nativeProjectPath || '.').replace(/\//g, '\\');
 
         // Kill existing process if any
         if (activeProcessRef.current) {
@@ -1393,10 +1393,7 @@ Integrations:
           return;
         }
 
-        // --- UNIVERSAL POWERSHELL EXECUTION (Like VSCode) ---
-        // VSCode runs ALL commands through a shell. We do the same with PowerShell.
-        // This guarantees that npm, git, node, python, etc. all work because
-        // PowerShell inherits the system PATH environment variable.
+        // --- UNIVERSAL POWERSHELL EXECUTION ---
         let child;
         try {
           child = await TauriCommand.create(
@@ -1444,37 +1441,21 @@ Integrations:
         activeProcessRef.current = null;
       }
     } else {
-      // Fallback Simulator (only if not in native mode or no folder open)
+      // Fallback Simulator (only for Browser mode where no Tauri is available)
       const cmd = val.toLowerCase();
       if (cmd === 'clear' || cmd === 'cls') {
         setTerminalSessions(prev => prev.map(s => s.id === sessionId ? { ...s, output: [] } : s));
       } else if (cmd === 'ls' || cmd === 'dir') {
         appendOutput(files.map(f => f.name).join('  '));
       } else if (cmd === 'help') {
-        appendOutput('Available: clear, ls, help, scan, build, date, aura --version, whoami, neofetch');
-      } else if (cmd === 'scan') {
-        scanForProblems();
-      } else if (cmd === 'date') {
-        appendOutput(new Date().toLocaleString());
+        appendOutput('Available: clear, ls, help, build, aura --version');
       } else if (cmd === 'build' || cmd === 'npm run build') {
         appendOutput('> aura-project@1.0.0 build');
-        appendOutput('> tsc && vite build');
-        appendOutput('✓ built in 1.23s');
+        appendOutput('✓ built in 1.23s (Simulated)');
       } else if (cmd === 'aura --version') {
-        appendOutput('Aura IDE v5.0.0 (VSCode Terminal Engine)');
-      } else if (cmd === 'whoami') {
-        appendOutput('aura-developer');
-      } else if (cmd === 'pwd') {
-        appendOutput(nativeProjectPath || '/aura-project');
-      } else if (cmd.startsWith('git') || cmd.startsWith('npm') || cmd.startsWith('node')) {
-        if (isTauri && !nativeProjectPath) {
-          appendOutput(`[INFO] Perintah "${cmd.split(' ')[0]}" memerlukan folder proyek Native.`);
-          appendOutput(`[ACTION] Buka folder Native terlebih dahulu melalui Explorer > ikon ⚡.`);
-        } else if (!isTauri) {
-          appendOutput('[INFO] Terminal Native (NPM/Git/Node) hanya tersedia di aplikasi Desktop (.exe).');
-        }
+        appendOutput('Aura IDE v5.1.1 (Browser Simulator)');
       } else {
-        appendOutput(`Command not found: ${val}. Ketik 'help' untuk daftar perintah.`);
+        appendOutput(`[BROWSER MODE] Perintah "${val}" tidak didukung. Harap gunakan aplikasi Desktop (.exe) untuk akses Terminal asli.`);
       }
     }
   };
