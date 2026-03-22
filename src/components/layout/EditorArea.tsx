@@ -68,61 +68,58 @@ export const EditorArea: React.FC<EditorAreaProps> = ({
             <h2 className="text-2xl font-bold text-white tracking-tight">Welcome to Aura IDE</h2>
             <p className="text-[#858585] text-sm max-w-sm mx-auto">The next generation AI-powered development environment. Start by creating a new file or opening a folder.</p>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full max-w-2xl px-4">
-            <button onClick={openFolder} className="flex flex-col items-center gap-2 p-4 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-95">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
-                <FolderOpen size={20} className="text-blue-500 group-hover:scale-110 transition-transform" />
+          <div className="flex flex-wrap justify-center gap-3 w-full max-w-4xl px-4">
+            <button onClick={openFolder} className="flex flex-col items-center gap-1.5 p-3 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 active:scale-95 w-32">
+              <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center group-hover:bg-blue-500/20 transition-colors">
+                <FolderOpen size={18} className="text-blue-500 group-hover:scale-110 transition-transform" />
               </div>
-              <span className="text-xs font-medium">Open Folder</span>
+              <span className="text-[11px] font-medium">Open Folder</span>
             </button>
-            <button onClick={onCreateProject} className="flex flex-col items-center gap-2 p-4 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-blue-500/10 active:scale-95">
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center transition-colors">
-                <FolderOpen size={20} className="text-gray-400 group-hover:scale-110 transition-transform" />
-                <Plus size={10} className="absolute ml-4 mt-4 text-gray-400 font-bold" />
+            <button onClick={onCreateProject} className="flex flex-col items-center gap-1.5 p-3 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 active:scale-95 w-32">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center transition-colors">
+                <FolderOpen size={18} className="text-gray-400 group-hover:scale-110 transition-transform" />
+                <Plus size={8} className="absolute ml-3 mt-3 text-gray-400 font-bold" />
               </div>
-              <span className="text-xs font-medium focus:text-gray-300">Create a new project</span>
+              <span className="text-[11px] font-medium focus:text-gray-300 whitespace-nowrap">New Project</span>
             </button>
             <button 
               onClick={() => setSidebarTab('github')} 
-              className="flex flex-col items-center gap-2 p-4 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/10 active:scale-95"
+              className="flex flex-col items-center gap-1.5 p-3 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 active:scale-95 w-32"
             >
-              <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
-                <Github size={20} className="text-purple-500 group-hover:scale-110 transition-transform" />
+              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center group-hover:bg-purple-500/20 transition-colors">
+                <Github size={18} className="text-purple-500 group-hover:scale-110 transition-transform" />
               </div>
-              <span className="text-xs font-medium">Clone Repo</span>
+              <span className="text-[11px] font-medium">Clone Repo</span>
             </button>
-            <button onClick={createNewFile} className="flex flex-col items-center gap-2 p-4 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-indigo-500/10 active:scale-95">
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
-                <Plus size={20} className="text-indigo-500 group-hover:scale-110 transition-transform" />
+            <button onClick={createNewFile} className="flex flex-col items-center gap-1.5 p-3 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 active:scale-95 w-32">
+              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition-colors">
+                <Plus size={18} className="text-indigo-500 group-hover:scale-110 transition-transform" />
               </div>
-              <span className="text-xs font-medium">New File</span>
+              <span className="text-[11px] font-medium">New File</span>
             </button>
             <button onClick={() => {
               const url = prompt('Enter GitHub Repository URL (e.g. https://github.com/user/repo):');
               if (url) {
-                // Better regex to handle full URLs and short formats
                 const githubRegex = /(?:https?:\/\/github\.com\/|git@github\.com:)?([^\/\s]+)\/([^\/\s#?]+?)(?:\.git)?(?:\/|\s|$|#|\?)/i;
                 const match = url.trim().match(githubRegex);
-                
                 if (match && match[1] && match[2]) {
                   const owner = match[1];
                   const name = match[2];
                   handleCloneRepo({ name, owner: { login: owner }, full_name: `${owner}/${name}` });
                 } else {
-                  // Fallback for very simple owner/repo input if regex didn't catch it
                   const parts = url.trim().split('/');
                   if (parts.length === 2) {
                     handleCloneRepo({ name: parts[1], owner: { login: parts[0] }, full_name: url.trim() });
                   } else {
-                    alert('Format URL GitHub tidak valid. Gunakan "https://github.com/owner/repo" atau "owner/repo"');
+                    alert('Format URL GitHub tidak valid.');
                   }
                 }
               }
-            }} className="flex flex-col items-center gap-2 p-4 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 hover:shadow-2xl hover:shadow-emerald-500/10 active:scale-95">
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
-                <Globe size={20} className="text-emerald-500 group-hover:scale-110 transition-transform" />
+            }} className="flex flex-col items-center gap-1.5 p-3 bg-[#252526]/50 backdrop-blur-md hover:bg-[#2d2d2d] rounded-xl border border-white/5 transition-all group hover:scale-105 active:scale-95 w-32">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center group-hover:bg-emerald-500/20 transition-colors">
+                <Globe size={18} className="text-emerald-500 group-hover:scale-110 transition-transform" />
               </div>
-              <span className="text-xs font-medium">Clone from URL</span>
+              <span className="text-[11px] font-medium whitespace-nowrap">Clone URL</span>
             </button>
           </div>
           <div className="flex flex-wrap justify-center gap-4 text-[10px] text-[#858585] font-mono uppercase tracking-widest pt-2 pb-6">
