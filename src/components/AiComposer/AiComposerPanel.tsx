@@ -125,8 +125,8 @@ export const AiComposerPanel: React.FC<AiComposerPanelProps> = ({
         fileCount++;
       }
 
-      // Final Terminal Commands - Execute only at the END for stability
-      const finalCmdRegex = /\`\`\`command:([^\n]+)\n?([\s\S]*?)(?:\`\`\`|$)/g;
+      // Final Terminal Commands - Execute only at the END if block is fully closed
+      const finalCmdRegex = /\`\`\`command:([^\n]+)\n?([\s\S]*?)\`\`\`/g;
       let finalCmdMatch;
       while ((finalCmdMatch = finalCmdRegex.exec(fullResponse)) !== null) {
         const cmd = finalCmdMatch[1].trim();
@@ -255,13 +255,27 @@ export const AiComposerPanel: React.FC<AiComposerPanelProps> = ({
                 <select 
                   value={category} 
                   onChange={(e) => setCategory(e.target.value)}
-                  className="bg-[#2a2a2a] text-[10px] text-gray-300 border border-white/10 rounded px-1.5 py-1 outline-none hover:border-blue-500/50 transition-colors cursor-pointer"
-                  title="Pilih Kategori / Skill Scaffold"
+                  className="bg-[#2a2a2a] text-[10px] text-gray-300 border border-white/10 rounded px-1.5 py-1 outline-none hover:border-blue-500/50 transition-colors cursor-pointer font-bold"
+                  title="Pilih Kategori / Skill Standar"
                 >
-                  <option value="Auto">Auto (Default)</option>
-                  <option value="Full Stack">Full Stack</option>
-                  <option value="Frontend">Frontend Code</option>
-                  <option value="Backend">Backend API</option>
+                  <optgroup label="Web & Enterprise">
+                    <option value="Auto">Auto (Smart)</option>
+                    <option value="Full Stack">Full Stack</option>
+                    <option value="Frontend">Frontend UI/UX</option>
+                    <option value="Backend">Backend API</option>
+                  </optgroup>
+                  <optgroup label="Apps & Platforms">
+                    <option value="Mobile App">Mobile App (Capacitor)</option>
+                    <option value="Tauri Desktop">Tauri (Desktop App)</option>
+                    <option value="Chrome Extension">Chrome Extension</option>
+                  </optgroup>
+                  <optgroup label="Automation & AI">
+                    <option value="Python Automation">Python / Automation</option>
+                    <option value="AI Integration">AI / LLM Ops</option>
+                  </optgroup>
+                  <optgroup label="Creative">
+                    <option value="Game Dev">Game Dev (Canvas)</option>
+                  </optgroup>
                 </select>
               </div>
               <button 
@@ -275,10 +289,10 @@ export const AiComposerPanel: React.FC<AiComposerPanelProps> = ({
                 <Send size={16} />
               </button>
             </div>
-         </div>
-         <div className="mt-2 text-center">
-            <span className="text-[9px] text-gray-600">Powered by Agentic Models ({model})</span>
-         </div>
+          </div>
+          <div className="mt-2 text-center">
+            <span className="text-[9px] text-gray-600">Standard Concept Selection (v5.4.0) - Elite Mode</span>
+          </div>
       </div>
     </div>
   );

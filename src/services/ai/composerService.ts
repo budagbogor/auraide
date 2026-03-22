@@ -9,6 +9,9 @@ TERMINAL CAPABILITIES:
 - To execute a command (e.g., npm install, git init, npm run dev), use the format:
 \`\`\`command:your-command-here
 \`\`\`
+- IMPORTANT: Commands MUST be complete and valid. Never stop at "npm".
+- DIRECTORY AWARENESS: If you create files in a subfolder (e.g., "frontend/src"), you MUST "cd" into that folder before running npm commands.
+- Example: \`\`\`command:cd frontend && npm install && npm run dev\`\`\`
 - Use this when the user asks to install dependencies, initialize a repo, or run a project.
 
 CODING STANDARDS (GOOGLE ECOSYSTEM STYLE):
@@ -28,6 +31,62 @@ STRICT OUTPUT RULES:
 
 Focus on being the fastest and most reliable AI coding assistant in the world.`;
 
+const DOMAIN_EXPERTISE: Record<string, string> = {
+  'Full Stack': `SKILL [FULL STACK ARCHITECT]:
+Create professional enterprise-grade applications.
+- Structure: Clear separation of /frontend and /backend or /src folders.
+- Standards: API-first, responsive UI, database migrations, package.json with scripts.
+- Output: Complete boilerplate and necessary config files.`,
+
+  'Frontend': `SKILL [FRONTEND UI/UX EXPERT]:
+Focus on visual excellence and premium user experience.
+- Design: Modern aesthetics (Glassmorphism, Tailwind, Motion).
+- Standards: Atomic design, reusable components, Lucide icons, responsive layouts.
+- Output: Polished React/Next.js components and global CSS.`,
+
+  'Backend': `SKILL [BACKEND ARCHITECT]:
+Focus on robust, scalable, and secure server-side logic.
+- Structure: Modular routes, controllers, and service layers (Node.js/Express).
+- Standards: Error handling, logging, validation, security headers.
+- Output: API routes, database schemas, and middleware.`,
+
+  'Mobile App': `SKILL [MOBILE APP EXPERT - Capacitor]:
+Develop hybrid cross-platform mobile apps for Android & iOS.
+- Structure: Capacitor integration, mobile-first components.
+- Standards: Touch-friendly UI, npx cap commands for sync/build.
+- Files: capacitor.config.ts, icons, mobile-specific layouts.`,
+
+  'Tauri Desktop': `SKILL [TAURI DESKTOP EXPERT]:
+Build native lightweight desktop apps using Rust & Web technologies.
+- Structure: src-tauri for Rust logic, frontend in React.
+- Standards: Security-first, native window APIs, tauri.conf.json tuning.
+- Files: src-tauri/Cargo.toml, tauri.conf.json, main context logic.`,
+
+  'Chrome Extension': `SKILL [CHROME EXTENSION MASTER - Manifest V3]:
+Construct powerful browser extensions with modern standards.
+- Structure: background.ts, content scripts, popup, options.
+- Standards: Manifest V3 compliant, permission management.
+- Files: manifest.json, service-worker, icons layout.`,
+
+  'Python Automation': `SKILL [PYTHON AUTOMATION SPECIALIST]:
+Write high-performance automation scripts and tools.
+- Standards: PEP8, clean error handling, modular scripts.
+- Concept: efficient subprocess handling, web scraping, or data processing.
+- Files: requirements.txt, .env templates, main script.`,
+
+  'AI Integration': `SKILL [AI & LLM OPS SPECIALIST]:
+Engineer state-of-the-art AI-powered applications.
+- Concepts: RAG architecture, LLM orchestration, prompt templates.
+- Standards: Token management, streaming logic, robust AI error fallbacks.
+- Tools: LangChain ideas, VectorDB mental models, OpenAI/Gemini SDKs.`,
+
+  'Game Dev': `SKILL [GAME DEVELOPMENT EXPERT]:
+Harness Canvas and Logic for high-performance web games.
+- Standards: High FPS game loop, collision detection, state machines.
+- Concepts: Sprite management, keyboard/touch controls, math-heavy logic.
+- Output: Canvas 2D/3D (Three.js) logic and game assets structure.`
+};
+
 export async function* generateComposerStream(
   provider: string,
   apiKey: string, 
@@ -39,28 +98,12 @@ export async function* generateComposerStream(
   projectTree?: string
 ) {
   const filesContextStr = buildProjectContextPrompt(filesContext, activeFileId, projectTree);
-  
-  let categorySkill = '';
-  if (category === 'Full Stack') {
-    categorySkill = `SKILL [FULL STACK SCAFFOLDING - SuperClaude Framework]:
-Act as a Senior Full Stack Engineer. When asked to create an app, you MUST generate the full directory structure (e.g., frontend and backend folders, src, components, api, package.json, etc.).
-Output EACH file using the markdown format strictly:
-\`\`\`file:path/to/file.ext
-[File Content Here...]
-\`\`\`
-Do not just give explanations. Output the COMPLETE scaffolding ready to be executed.`;
-  } else if (category === 'Frontend') {
-    categorySkill = `SKILL [FRONTEND SCAFFOLDING - SuperClaude Framework]:
-Act as a Senior Frontend UI/UX Engineer. Focus entirely on creating polished, modern, responsive UI components (React/Next.js/Tailwind). Generate the necessary folder structure (e.g., src/components, src/hooks, src/utils, etc.). Do not just return one file. Write out the structure using the strict file codeblocks.`;
-  } else if (category === 'Backend') {
-    categorySkill = `SKILL [BACKEND SCAFFOLDING - SuperClaude Framework]:
-Act as a Senior Backend Systems Architect. Focus on creating robust APIs, database models, and service layers (Node.js/Python). Build the complete project folder tree (e.g., src/routes, src/controllers, src/models, src/config) utilizing the markdown file blocks.`;
-  }
+  const categorySkill = DOMAIN_EXPERTISE[category] || '';
 
   const completePrompt = `
 ${COMPOSER_SYSTEM_PROMPT}
 
-${categorySkill ? `\n### APPLIED SKILL CONTEXT:\n${categorySkill}\n` : ''}
+${categorySkill ? ` \n### APPLIED SKILL CONTEXT:\n${categorySkill}\n` : ''}
 ${filesContextStr}
 
 USER REQUEST:
@@ -80,7 +123,6 @@ ${userPrompt}
     }
   } else if (provider === 'bytez') {
     const { generateBytezContent } = await import('../bytezService');
-    // Assuming pass empty string for googleKey right now since usually we only use one API Key for Bytez
     const content = await generateBytezContent(model, completePrompt, apiKey, '');
     yield content;
   } else {
@@ -89,10 +131,9 @@ ${userPrompt}
       ? 'https://openrouter.ai/api/v1/chat/completions' 
       : 'https://ai.sumopod.com/v1/chat/completions';
     
-    // Auto-resolve OpenRouter auto-free logic if needed
     let targetModel = model;
     if (provider === 'openrouter' && model === 'auto-free') {
-      targetModel = 'google/gemini-2.0-flash-lite-preview-02-05:free'; // fallback default free
+      targetModel = 'google/gemini-2.0-flash-lite-preview-02-05:free';
     }
 
     const response = await fetch(baseUrl, {
@@ -143,8 +184,6 @@ ${userPrompt}
 
 export function parseComposerResponse(fullResponse: string) {
   const files: { path: string; action: 'create_or_modify' | 'delete'; content: string }[] = [];
-  
-  // Regex to match our custom markdown format: ```file:path/to/file.ext \n content \n ```
   const blockRegex = /\`\`\`(file|delete):([^\n]+)\n([\s\S]*?)\`\`\`/g;
   
   let match;
